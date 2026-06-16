@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">liks-sports</string>
+
+    <!-- RoutineListScreen -->
+    <string name="routine_list_title">Rutinas de Ejercicio</string>
+    <string name="new_routine">Nueva Rutina</string>
+    <string name="routine_name">Nombre de la rutina</string>
+    <string name="cancel">Cancelar</string>
+    <string name="create">Crear</string>
+    <string name="rename_routine">Renombrar Rutina</string>
+    <string name="save">Guardar</string>
+    <string name="no_routines_yet">No hay rutinas aún</string>
+    <string name="tap_to_create">Toca + para crear tu primera rutina</string>
+    <string name="exercises_count">%d ejercicios</string>
+    <string name="exercises_with_time">%1$d ejercicios · %2$s</string>
+    <string name="total_time">Total: %s</string>
+    <string name="add_routine_desc">Añadir rutina</string>
+    <string name="rename_routine_desc">Renombrar rutina</string>
+    <string name="delete_routine_desc">Eliminar rutina</string>
+
+    <!-- RoutineDetailScreen -->
+    <string name="rename_exercise">Renombrar Ejercicio</string>
+    <string name="exercise_name">Nombre del ejercicio</string>
+    <string name="new_exercise">Nuevo Ejercicio</string>
+    <string name="add">Añadir</string>
+    <string name="back_desc">Atrás</string>
+    <string name="start_workout">Iniciar Entrenamiento</string>
+    <string name="default_times">Tiempos por Defecto</string>
+    <string name="default_times_desc">Aplicado a todos los ejercicios salvo que se anule</string>
+    <string name="exercise_label">Ejercicio</string>
+    <string name="rest_label">Descanso</string>
+    <string name="exercises_section">Ejercicios</string>
+    <string name="repeat_count">Repetición del circuito:</string>
+    <string name="no_exercises_yet">No hay ejercicios aún</string>
+    <string name="tap_add_exercise">Toca Añadir para crear tu primer ejercicio</string>
+    <string name="reps_label">reps</string>
+    <string name="exercise_rest_format">%1$ds ejercicio · %2$ds descanso</string>
+    <string name="override_label">Anular</string>
+    <string name="rename_desc">Renombrar</string>
+    <string name="delete_exercise_desc">Eliminar ejercicio</string>
+
+    <!-- ExerciseTimerScreen -->
+    <string name="workout_complete">Entrenamiento Completado</string>
+    <string name="all_exercises_complete">¡Todos los ejercicios completados!</string>
+    <string name="great_work">¡Buen trabajo!</string>
+    <string name="done">Hecho</string>
+    <string name="rest_phase">Descanso</string>
+    <string name="get_ready">Prepárate para el siguiente ejercicio</string>
+    <string name="current_exercise">Ejercicio actual</string>
+    <string name="exercise_of">Ejercicio %1$d de %2$d</string>
+    <string name="reset">Reiniciar</string>
+    <string name="resume_desc">Reanudar</string>
+    <string name="pause_desc">Pausar</string>
+    <string name="skip">Saltar</string>
+
+    <!-- Default routine names -->
+    <string name="parkour_name">Parkour</string>
+    <string name="parkour_rotar_suave">Trotar suave</string>
+    <string name="parkour_saltar_cuerda">Saltar cuerda</string>
+    <string name="parkour_sentadillas">Sentadillas</string>
+    <string name="parkour_plancha">Plancha</string>
+    <string name="parkour_un_pie_1">Un pie (derecho)</string>
+    <string name="parkour_un_pie_2">Un pie (izquierdo)</string>
+    <string name="parkour_elevaciones_talones">Elev. talones</string>
+    <string name="parkour_saltos_suaves">Saltos suaves</string>
+    <string name="parkour_tecnica">Técnica parkour</string>
+    <string name="parkour_caidas_suaves">Caídas suaves</string>
+    <string name="parkour_saltos_precision">Saltos precisión</string>
+</resources>
