@@ -245,7 +245,6 @@ fun AiChatDialog(
                         Text(
                             text = "Clear",
                             color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
                         )
                     }
                     Spacer(modifier = Modifier.weight(1f))

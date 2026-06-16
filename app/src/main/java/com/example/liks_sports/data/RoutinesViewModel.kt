@@ -52,7 +52,7 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    private fun isBuiltin(id: String) = id == BUILTIN_PARKOUR_ID
+    private fun isBuiltin(id: String) = id == BUILTIN_PARKOUR_ID || id == BUILTIN_FOOTBALL_ID
 
     private fun builtinRoutines(): List<Routine> {
         val res = getApplication<Application>().resources
@@ -151,6 +151,68 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
                     ),
                 ),
             ),
+            Routine(
+                id = BUILTIN_FOOTBALL_ID,
+                name = res.getString(R.string.football_name),
+                exercises = listOf(
+                    Exercise(
+                        id = "football_hip_glute",
+                        name = res.getString(R.string.football_hip_glute),
+                        reps = 2,
+                        exerciseDurationSeconds = 30,
+                        restDurationSeconds = 30,
+                        overrideDefaults = true,
+                    ),
+                    Exercise(
+                        id = "football_lateral_lunge",
+                        name = res.getString(R.string.football_lateral_lunge),
+                        reps = 3,
+                        exerciseDurationSeconds = 45,
+                        restDurationSeconds = 45,
+                        overrideDefaults = true,
+                    ),
+                    Exercise(
+                        id = "football_nordic_curl",
+                        name = res.getString(R.string.football_nordic_curl),
+                        reps = 3,
+                        exerciseDurationSeconds = 60,
+                        restDurationSeconds = 60,
+                        overrideDefaults = true,
+                    ),
+                    Exercise(
+                        id = "football_ankle_hold",
+                        name = res.getString(R.string.football_ankle_hold),
+                        reps = 2,
+                        exerciseDurationSeconds = 30,
+                        restDurationSeconds = 20,
+                        overrideDefaults = true,
+                    ),
+                    Exercise(
+                        id = "football_lateral_shuffle",
+                        name = res.getString(R.string.football_lateral_shuffle),
+                        reps = 4,
+                        exerciseDurationSeconds = 30,
+                        restDurationSeconds = 30,
+                        overrideDefaults = true,
+                    ),
+                    Exercise(
+                        id = "football_sprint",
+                        name = res.getString(R.string.football_sprint),
+                        reps = 4,
+                        exerciseDurationSeconds = 30,
+                        restDurationSeconds = 45,
+                        overrideDefaults = true,
+                    ),
+                    Exercise(
+                        id = "football_calf_raise",
+                        name = res.getString(R.string.football_calf_raise),
+                        reps = 2,
+                        exerciseDurationSeconds = 15,
+                        restDurationSeconds = 10,
+                        overrideDefaults = true,
+                    ),
+                ),
+            ),
         )
     }
 
@@ -243,5 +305,6 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
         private const val KEY_ROUTINES = "routines"
         private const val KEY_DISMISSED = "dismissed_defaults"
         private const val BUILTIN_PARKOUR_ID = "builtin_parkour"
+        private const val BUILTIN_FOOTBALL_ID = "builtin_football"
     }
 }

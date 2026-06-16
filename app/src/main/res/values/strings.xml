@@ -67,6 +67,14 @@
     <string name="parkour_tecnica">Parkour technique</string>
     <string name="parkour_caidas_suaves">Soft landings</string>
     <string name="parkour_saltos_precision">Precision jumps</string>
+    <string name="football_name">Football</string>
+    <string name="football_hip_glute">Hip flexor &amp; glute activation walk</string>
+    <string name="football_lateral_lunge">Dynamic lateral lunge with knee tracking</string>
+    <string name="football_nordic_curl">Nordic hamstring curl (eccentric, bodyweight)</string>
+    <string name="football_ankle_hold">Single-leg ankle stability hold</string>
+    <string name="football_lateral_shuffle">Lateral shuffle with deceleration</string>
+    <string name="football_sprint">Progressive sprint build-up</string>
+    <string name="football_calf_raise">Dynamic calf raise with toe spread</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
