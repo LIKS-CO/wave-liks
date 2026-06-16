@@ -68,13 +68,13 @@
     <string name="parkour_caidas_suaves">Caídas suaves</string>
     <string name="parkour_saltos_precision">Saltos precisión</string>
     <string name="football_name">Fútbol</string>
-    <string name="football_hip_glute">Caminata de activación de cadera y glúteo</string>
-    <string name="football_lateral_lunge">Estocada lateral dinámica con control de rodilla</string>
-    <string name="football_nordic_curl">Curl nórdico isquiotibial (excéntrico, peso corporal)</string>
-    <string name="football_ankle_hold">Equilibrio monopodal de tobillo</string>
-    <string name="football_lateral_shuffle">Desplazamiento lateral con deceleración</string>
-    <string name="football_sprint">Progresión de sprint progresiva</string>
-    <string name="football_calf_raise">Elevación dinámica de talones con apertura de dedos</string>
+    <string name="football_hip_glute">Cadera y glúteo</string>
+    <string name="football_lateral_lunge">Estocada lateral</string>
+    <string name="football_nordic_curl">Curl nórdico</string>
+    <string name="football_ankle_hold">Equilibrio tobillo</string>
+    <string name="football_lateral_shuffle">Desplazamiento lateral</string>
+    <string name="football_sprint">Sprint progresivo</string>
+    <string name="football_calf_raise">Elevación talones</string>
 
     <!-- Settings -->
     <string name="settings_title">Configuración</string>
@@ -85,7 +85,7 @@
 
     <!-- AI Chat -->
     <string name="ai_assistant_title">Asistente IA</string>
-    <string name="ai_edit_desc">Editar rutina con IA</string>
+    <string name="ai_edit_desc">Editar con IA</string>
     <string name="ai_placeholder">Describe cómo editar esta rutina…</string>
     <string name="ai_send">Enviar</string>
     <string name="ai_system_context">Pide a la IA que añada, elimine o modifique ejercicios en esta rutina.</string>

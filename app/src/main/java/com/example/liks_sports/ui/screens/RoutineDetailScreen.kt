@@ -47,6 +47,7 @@ import com.example.liks_sports.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.liks_sports.data.Exercise
 import com.example.liks_sports.data.Routine
@@ -338,19 +339,21 @@ fun RoutineDetailScreen(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    OutlinedButton(
-                        onClick = { showAiChat = true }
-                    ) {
-                        Icon(imageVector = AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(stringResource(R.string.ai_edit_desc))
-                    }
-                    OutlinedButton(
-                        onClick = { showAddDialog = true }
-                    ) {
-                        Icon(imageVector = Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(stringResource(R.string.add))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { showAiChat = true }
+                        ) {
+                            Icon(imageVector = AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(stringResource(R.string.ai_edit_desc))
+                        }
+                        OutlinedButton(
+                            onClick = { showAddDialog = true }
+                        ) {
+                            Icon(imageVector = Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(stringResource(R.string.add))
+                        }
                     }
                 }
             }
@@ -510,6 +513,9 @@ private fun ExerciseCard(
                             text = exercise.name,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f, fill = false),
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         IconButton(

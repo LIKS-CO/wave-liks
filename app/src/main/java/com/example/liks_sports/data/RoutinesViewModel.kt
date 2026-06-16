@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
@@ -14,13 +15,19 @@ import org.json.JSONObject
 class RoutinesViewModel(application: Application) : AndroidViewModel(application) {
     private var savedRoutines by mutableStateOf(listOf<Routine>())
     private var dismissedDefaults by mutableStateOf(setOf<String>())
+    private var localeVersion by mutableIntStateOf(0)
 
     val routines by derivedStateOf {
+        localeVersion
         (builtinRoutines() + savedRoutines).filter { it.id !in dismissedDefaults }
     }
 
     init {
         loadState()
+    }
+
+    fun onLocaleChanged() {
+        localeVersion++
     }
 
     fun addRoutine(name: String): Routine {
@@ -161,7 +168,7 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
                         reps = 2,
                         exerciseDurationSeconds = 30,
                         restDurationSeconds = 30,
-                        overrideDefaults = true,
+                        overrideDefaults = false,
                     ),
                     Exercise(
                         id = "football_lateral_lunge",
@@ -193,7 +200,7 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
                         reps = 4,
                         exerciseDurationSeconds = 30,
                         restDurationSeconds = 30,
-                        overrideDefaults = true,
+                        overrideDefaults = false,
                     ),
                     Exercise(
                         id = "football_sprint",
