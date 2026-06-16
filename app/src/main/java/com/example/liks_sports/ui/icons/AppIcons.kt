@@ -1008,3 +1008,67 @@ val Send: ImageVector
   }
 
 private var _Send: ImageVector? = null
+
+val ArrowDropUp: ImageVector
+    get() {
+        if (_ArrowDropUp != null) return _ArrowDropUp!!
+        _ArrowDropUp = ImageVector.Builder(
+            name = "arrow_drop_up",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            path(
+                fill = SolidColor(Color.Black),
+                fillAlpha = 1f,
+                stroke = null,
+                strokeAlpha = 1f,
+                strokeLineWidth = 1f,
+                strokeLineCap = StrokeCap.Butt,
+                strokeLineJoin = StrokeJoin.Bevel,
+                strokeLineMiter = 1f,
+                pathFillType = PathFillType.NonZero,
+            ) {
+                moveTo(12f, 8f)
+                lineTo(20f, 18f)
+                lineTo(4f, 18f)
+                close()
+            }
+        }.build()
+        return _ArrowDropUp!!
+    }
+
+private var _ArrowDropUp: ImageVector? = null
+
+val ArrowDropDown: ImageVector
+    get() {
+        if (_ArrowDropDown != null) return _ArrowDropDown!!
+        _ArrowDropDown = ImageVector.Builder(
+            name = "arrow_drop_down",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            path(
+                fill = SolidColor(Color.Black),
+                fillAlpha = 1f,
+                stroke = null,
+                strokeAlpha = 1f,
+                strokeLineWidth = 1f,
+                strokeLineCap = StrokeCap.Butt,
+                strokeLineJoin = StrokeJoin.Bevel,
+                strokeLineMiter = 1f,
+                pathFillType = PathFillType.NonZero,
+            ) {
+                moveTo(12f, 18f)
+                lineTo(20f, 8f)
+                lineTo(4f, 8f)
+                close()
+            }
+        }.build()
+        return _ArrowDropDown!!
+    }
+
+private var _ArrowDropDown: ImageVector? = null

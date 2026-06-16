@@ -12,7 +12,6 @@
     <string name="save">Save</string>
     <string name="no_routines_yet">No routines yet</string>
     <string name="tap_to_create">Tap + to create your first routine</string>
-    <string name="exercises_count">%d exercises</string>
     <string name="exercises_with_time">%1$d exercises · %2$s</string>
     <string name="total_time">Total: %s</string>
     <string name="add_routine_desc">Add routine</string>
@@ -20,6 +19,8 @@
     <string name="delete_routine_desc">Delete routine</string>
     <string name="delete_routine_title">Delete Routine</string>
     <string name="delete_routine_confirm">Are you sure you want to delete \"%1$s\"? This cannot be undone.</string>
+    <string name="routine_deleted">\"%1$s\" deleted</string>
+    <string name="undo">Undo</string>
     <string name="delete">Delete</string>
     <string name="routine_not_found">Routine not found</string>
 
@@ -43,6 +44,11 @@
     <string name="override_label">Override</string>
     <string name="rename_desc">Rename</string>
     <string name="delete_exercise_desc">Delete exercise</string>
+    <string name="exercise_deleted">\"%1$s\" deleted</string>
+    <string name="move_up_desc">Move up</string>
+    <string name="move_down_desc">Move down</string>
+    <string name="exercise_duration_desc">Exercise duration in seconds</string>
+    <string name="rest_duration_desc">Rest duration in seconds</string>
 
     <!-- ExerciseTimerScreen -->
     <string name="workout_complete">Workout Complete</string>
@@ -93,6 +99,15 @@
     <string name="ai_placeholder">Describe how to edit this routine…</string>
     <string name="ai_send">Send</string>
     <string name="ai_system_context">Ask the AI to add, remove, or modify exercises in this routine.</string>
-    <string name="ai_no_settings">Configure API settings first (tap ⚙).</string>
     <string name="close">Close</string>
+    <string name="ai_thinking">Thinking</string>
+    <string name="ai_thinking_ellipsis">Thinking…</string>
+    <string name="ai_generating">Generating…</string>
+    <string name="ai_clear">Clear</string>
+    <string name="ai_you">You</string>
+    <string name="ai_ai">AI</string>
+    <string name="ai_not_configured">API endpoint not configured</string>
+    <string name="ai_network_error">Network error: %1$s</string>
+    <string name="ai_test_connection">Test Connection</string>
+    <string name="ai_testing">Testing…</string>
 </resources>

@@ -1,7 +1,6 @@
 package com.example.liks_sports.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -25,19 +25,24 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -46,6 +51,8 @@ import androidx.compose.ui.res.stringResource
 import com.example.liks_sports.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,6 +60,8 @@ import com.example.liks_sports.data.Exercise
 import com.example.liks_sports.data.Routine
 import com.example.liks_sports.ui.icons.Add
 import com.example.liks_sports.ui.icons.ArrowBack
+import com.example.liks_sports.ui.icons.ArrowDropDown
+import com.example.liks_sports.ui.icons.ArrowDropUp
 import com.example.liks_sports.ui.icons.Check
 import com.example.liks_sports.ui.icons.Close
 import com.example.liks_sports.ui.icons.Delete
@@ -63,6 +72,7 @@ import com.example.liks_sports.ui.icons.Timer
 import com.example.liks_sports.data.ChatHistoryStore
 import com.example.liks_sports.data.ChatMessage
 import com.example.liks_sports.data.SettingsStore
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -101,6 +111,34 @@ fun RoutineDetailScreen(
     var showAiChat by rememberSaveable { mutableStateOf(false) }
     val chatHistoryState = remember { mutableStateOf(chatHistoryStore.getMessages(routine.id)) }
 
+    var saveCounter by remember { mutableIntStateOf(0) }
+
+    fun scheduleSave() { saveCounter++ }
+
+    LaunchedEffect(saveCounter) {
+        if (saveCounter == 0) return@LaunchedEffect
+        delay(1000L)
+        onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
+    }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    var pendingDeletedExercise by remember { mutableStateOf<Triple<Int, Exercise, String>?>(null) }
+    val undoLabel = stringResource(R.string.undo)
+
+    LaunchedEffect(pendingDeletedExercise) {
+        val (idx, ex, msg) = pendingDeletedExercise ?: return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = msg,
+            actionLabel = undoLabel,
+            duration = SnackbarDuration.Short,
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            exercises = exercises.toMutableList().apply { add(idx.coerceAtMost(size), ex) }
+            scheduleSave()
+        }
+        pendingDeletedExercise = null
+    }
+
     if (showRenameDialog) {
         AlertDialog(
             onDismissRequest = {
@@ -125,7 +163,7 @@ fun RoutineDetailScreen(
                             exercises = exercises.map {
                                 if (it.id == renameExerciseId) it.copy(name = renameText.trim()) else it
                             }
-                            onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
+                            scheduleSave()
                             showRenameDialog = false
                             renameText = ""
                             renameExerciseId = ""
@@ -166,7 +204,7 @@ fun RoutineDetailScreen(
                     onClick = {
                         if (newExerciseName.isNotBlank()) {
                             exercises = exercises + Exercise(name = newExerciseName.trim())
-                            onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
+                            scheduleSave()
                             showAddDialog = false
                             newExerciseName = ""
                         }
@@ -200,7 +238,7 @@ fun RoutineDetailScreen(
             onApplyEdits = { edited ->
                 exercises = edited.exercises
                 routineName = edited.name
-                onUpdateRoutine(edited)
+                scheduleSave()
             },
             onAiResponded = { text ->
                 chatHistoryStore.addMessage(routine.id, ChatMessage("assistant", text))
@@ -250,7 +288,8 @@ fun RoutineDetailScreen(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(stringResource(R.string.start_workout))
             }
-        }
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -292,18 +331,19 @@ fun RoutineDetailScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                        text = stringResource(R.string.default_times),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = stringResource(R.string.default_times_desc),
+                            text = stringResource(R.string.default_times),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = stringResource(R.string.default_times_desc),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         DurationSlider(
                             label = stringResource(R.string.exercise_label),
+                            contentDesc = stringResource(R.string.exercise_duration_desc),
                             value = globalExerciseDuration,
                             onValueChange = { newVal ->
                                 globalExerciseDuration = newVal
@@ -311,14 +351,13 @@ fun RoutineDetailScreen(
                                     if (!ex.overrideDefaults) ex.copy(exerciseDurationSeconds = newVal)
                                     else ex
                                 }
-                            },
-                            onValueChangeFinished = {
-                                onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
+                                scheduleSave()
                             },
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         DurationSlider(
                             label = stringResource(R.string.rest_label),
+                            contentDesc = stringResource(R.string.rest_duration_desc),
                             value = globalRestDuration,
                             onValueChange = { newVal ->
                                 globalRestDuration = newVal
@@ -326,9 +365,7 @@ fun RoutineDetailScreen(
                                     if (!ex.overrideDefaults) ex.copy(restDurationSeconds = newVal)
                                     else ex
                                 }
-                            },
-                            onValueChangeFinished = {
-                                onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
+                                scheduleSave()
                             },
                         )
                     }
@@ -426,8 +463,11 @@ fun RoutineDetailScreen(
             }
 
             itemsIndexed(exercises, key = { _, ex -> ex.id }) { index, exercise ->
+                val deletedMsg = stringResource(R.string.exercise_deleted, exercise.name)
                 ExerciseCard(
                     exercise = exercise,
+                    index = index,
+                    totalCount = exercises.size,
                     globalExerciseDuration = globalExerciseDuration,
                     globalRestDuration = globalRestDuration,
                     onRenameExercise = {
@@ -446,30 +486,46 @@ fun RoutineDetailScreen(
                                 )
                             )
                         }
-                        onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
+                        scheduleSave()
                     },
                     onRepsChange = { newReps ->
                         exercises = exercises.toMutableList().apply {
                             set(index, exercise.copy(reps = newReps))
                         }
-                        onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
+                        scheduleSave()
                     },
                     onExerciseDurationChange = { newDuration ->
                         exercises = exercises.toMutableList().apply {
                             set(index, exercise.copy(exerciseDurationSeconds = newDuration))
                         }
-                        onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
+                        scheduleSave()
                     },
                     onRestDurationChange = { newDuration ->
                         exercises = exercises.toMutableList().apply {
                             set(index, exercise.copy(restDurationSeconds = newDuration))
                         }
-                        onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
+                        scheduleSave()
                     },
                     onDelete = {
+                        pendingDeletedExercise = Triple(index, exercise, deletedMsg)
                         exercises = exercises.toMutableList().apply { removeAt(index) }
-                        onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
                     },
+                    onMoveUp = if (index > 0) {
+                        {
+                            exercises = exercises.toMutableList().apply {
+                                add(index - 1, removeAt(index))
+                            }
+                            scheduleSave()
+                        }
+                    } else null,
+                    onMoveDown = if (index < exercises.size - 1) {
+                        {
+                            exercises = exercises.toMutableList().apply {
+                                add(index + 1, removeAt(index))
+                            }
+                            scheduleSave()
+                        }
+                    } else null,
                 )
             }
         }
@@ -479,6 +535,8 @@ fun RoutineDetailScreen(
 @Composable
 private fun ExerciseCard(
     exercise: Exercise,
+    index: Int,
+    totalCount: Int,
     globalExerciseDuration: Int,
     globalRestDuration: Int,
     onRenameExercise: () -> Unit,
@@ -487,6 +545,8 @@ private fun ExerciseCard(
     onExerciseDurationChange: (Int) -> Unit,
     onRestDurationChange: (Int) -> Unit,
     onDelete: () -> Unit,
+    onMoveUp: (() -> Unit)?,
+    onMoveDown: (() -> Unit)?,
 ) {
     var showRepsMenu by rememberSaveable { mutableStateOf(false) }
 
@@ -503,11 +563,14 @@ private fun ExerciseCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onToggleOverride(!exercise.overrideDefaults) }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(start = 16.dp, top = 12.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 4.dp),
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = exercise.name,
@@ -529,7 +592,9 @@ private fun ExerciseCard(
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = stringResource(R.string.reps_label),
                             style = MaterialTheme.typography.bodySmall,
@@ -568,15 +633,43 @@ private fun ExerciseCard(
                                 }
                             }
                         }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.exercise_rest_format, displayExerciseDuration, displayRestDuration),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                    Text(
-                        text = stringResource(R.string.exercise_rest_format, displayExerciseDuration, displayRestDuration),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row {
+                        if (onMoveUp != null) {
+                            IconButton(onClick = onMoveUp, modifier = Modifier.size(28.dp)) {
+                                Icon(
+                                    imageVector = ArrowDropUp,
+                                    contentDescription = stringResource(R.string.move_up_desc),
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.size(28.dp))
+                        }
+                        if (onMoveDown != null) {
+                            IconButton(onClick = onMoveDown, modifier = Modifier.size(28.dp)) {
+                                Icon(
+                                    imageVector = ArrowDropDown,
+                                    contentDescription = stringResource(R.string.move_down_desc),
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.size(28.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Switch(
                             checked = exercise.overrideDefaults,
                             onCheckedChange = { onToggleOverride(it) },
@@ -596,37 +689,39 @@ private fun ExerciseCard(
                                 }
                             },
                         )
-                        Text(
-                            text = stringResource(R.string.override_label),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    IconButton(onClick = onDelete) {
-                        Icon(
-                            imageVector = Delete,
+                        Spacer(modifier = Modifier.width(2.dp))
+                        IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                            Icon(
+                                imageVector = Delete,
                                 contentDescription = stringResource(R.string.delete_exercise_desc),
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(20.dp),
-                        )
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
                     }
+                    Text(
+                        text = stringResource(R.string.override_label),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
 
             AnimatedVisibility(visible = exercise.overrideDefaults) {
                 Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
-                        DurationSlider(
-                            label = stringResource(R.string.exercise_label),
-                            value = exercise.exerciseDurationSeconds,
-                            onValueChange = onExerciseDurationChange,
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        DurationSlider(
-                            label = stringResource(R.string.rest_label),
-                            value = exercise.restDurationSeconds,
-                            onValueChange = onRestDurationChange,
-                        )
+                    DurationSlider(
+                        label = stringResource(R.string.exercise_label),
+                        contentDesc = stringResource(R.string.exercise_duration_desc),
+                        value = exercise.exerciseDurationSeconds,
+                        onValueChange = onExerciseDurationChange,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    DurationSlider(
+                        label = stringResource(R.string.rest_label),
+                        contentDesc = stringResource(R.string.rest_duration_desc),
+                        value = exercise.restDurationSeconds,
+                        onValueChange = onRestDurationChange,
+                    )
                 }
             }
         }
@@ -636,9 +731,9 @@ private fun ExerciseCard(
 @Composable
 private fun DurationSlider(
     label: String,
+    contentDesc: String,
     value: Int,
     onValueChange: (Int) -> Unit,
-    onValueChangeFinished: (() -> Unit)? = null,
 ) {
     Column {
         Row(
@@ -661,10 +756,11 @@ private fun DurationSlider(
         Slider(
             value = value.toFloat(),
             onValueChange = { onValueChange((it / 5f).roundToInt() * 5) },
-            onValueChangeFinished = onValueChangeFinished,
             valueRange = 5f..120f,
             steps = 22,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics { this.contentDescription = contentDesc },
         )
     }
 }

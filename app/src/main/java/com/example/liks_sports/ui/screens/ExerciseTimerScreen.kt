@@ -79,7 +79,7 @@ fun ExerciseTimerScreen(
     var isComplete by rememberSaveable { mutableStateOf(false) }
     var isRunning by rememberSaveable { mutableStateOf(false) }
 
-    val currentExercise = remember(currentIndex, isResting) {
+    val currentExercise = remember(currentIndex) {
         routine.exercises.getOrNull(currentIndex)
     }
 
@@ -92,41 +92,47 @@ fun ExerciseTimerScreen(
 
     var currentRingtone by remember { mutableStateOf<android.media.Ringtone?>(null) }
 
+    fun advancePhase() {
+        val exercise = routine.exercises.getOrNull(currentIndex) ?: return
+        if (isResting) {
+            if (currentRep < exercise.reps) {
+                currentRep += 1
+                isResting = false
+                remainingSeconds = exercise.exerciseDurationSeconds
+            } else {
+                val nextIndex = currentIndex + 1
+                if (nextIndex < routine.exercises.size) {
+                    currentIndex = nextIndex
+                    currentRep = 1
+                    isResting = false
+                    remainingSeconds = routine.exercises.getOrNull(nextIndex)?.exerciseDurationSeconds ?: 0
+                } else if (currentRound < repeatCount) {
+                    currentRound += 1
+                    currentIndex = 0
+                    currentRep = 1
+                    isResting = false
+                    remainingSeconds = routine.exercises.firstOrNull()?.exerciseDurationSeconds ?: 0
+                } else {
+                    isComplete = true
+                    isRunning = false
+                }
+            }
+        } else {
+            isResting = true
+            remainingSeconds = currentExercise?.restDurationSeconds ?: 10
+        }
+    }
+
     LaunchedEffect(isRunning, isPaused, remainingSeconds) {
         if (!isRunning || isPaused) return@LaunchedEffect
+        if (remainingSeconds <= 0) return@LaunchedEffect
         delay(1000L)
         if (remainingSeconds > 1) {
             remainingSeconds -= 1
         } else {
+            remainingSeconds = 0
             playAlert(context, currentRingtone) { currentRingtone = it }
-            if (isResting) {
-                val exercise = routine.exercises[currentIndex]
-                if (currentRep < exercise.reps) {
-                    currentRep += 1
-                    isResting = false
-                    remainingSeconds = exercise.exerciseDurationSeconds
-                } else {
-                    val nextIndex = currentIndex + 1
-                    if (nextIndex < routine.exercises.size) {
-                        currentIndex = nextIndex
-                        currentRep = 1
-                        isResting = false
-                        remainingSeconds = routine.exercises[nextIndex].exerciseDurationSeconds
-                    } else if (currentRound < repeatCount) {
-                        currentRound += 1
-                        currentIndex = 0
-                        currentRep = 1
-                        isResting = false
-                        remainingSeconds = routine.exercises[0].exerciseDurationSeconds
-                    } else {
-                        isComplete = true
-                        isRunning = false
-                    }
-                }
-            } else {
-                isResting = true
-                remainingSeconds = currentExercise?.restDurationSeconds ?: 10
-            }
+            advancePhase()
         }
     }
 
@@ -139,9 +145,11 @@ fun ExerciseTimerScreen(
             currentRingtone?.stop()
         }
     }
-    if (!autoStarted && !isComplete) {
-        isRunning = true
-        autoStarted = true
+    if (!autoStarted && !isComplete && routine.exercises.isNotEmpty()) {
+        LaunchedEffect(Unit) {
+            isRunning = true
+            autoStarted = true
+        }
     }
 
     Scaffold(
@@ -174,7 +182,7 @@ fun ExerciseTimerScreen(
             if (isComplete) {
                 Icon(
                     imageVector = CheckCircle,
-                    contentDescription = null,
+                    contentDescription = stringResource(R.string.workout_complete),
                     modifier = Modifier.size(80.dp),
                     tint = MaterialTheme.colorScheme.primary,
                 )
@@ -225,6 +233,8 @@ fun ExerciseTimerScreen(
                     modifier = Modifier.size(200.dp),
                     strokeWidth = 12.dp,
                     trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    color = if (isResting) MaterialTheme.colorScheme.tertiary
+                        else MaterialTheme.colorScheme.primary,
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
@@ -270,7 +280,7 @@ fun ExerciseTimerScreen(
                             currentIndex = 0
                             currentRep = 1
                             isResting = false
-                            remainingSeconds = routine.exercises.first().exerciseDurationSeconds
+                            remainingSeconds = routine.exercises.firstOrNull()?.exerciseDurationSeconds ?: 0
                             isRunning = true
                         }
                     ) {
@@ -293,36 +303,7 @@ fun ExerciseTimerScreen(
                     }
 
                     OutlinedButton(
-                        onClick = {
-                            if (isResting) {
-                                val exercise = routine.exercises[currentIndex]
-                                if (currentRep < exercise.reps) {
-                                    currentRep += 1
-                                    isResting = false
-                                    remainingSeconds = exercise.exerciseDurationSeconds
-                                } else {
-                                    val nextIndex = currentIndex + 1
-                                    if (nextIndex < routine.exercises.size) {
-                                        currentIndex = nextIndex
-                                        currentRep = 1
-                                        isResting = false
-                                        remainingSeconds = routine.exercises[nextIndex].exerciseDurationSeconds
-                                    } else if (currentRound < repeatCount) {
-                                        currentRound += 1
-                                        currentIndex = 0
-                                        currentRep = 1
-                                        isResting = false
-                                        remainingSeconds = routine.exercises[0].exerciseDurationSeconds
-                                    } else {
-                                        isComplete = true
-                                        isRunning = false
-                                    }
-                                }
-                            } else {
-                                isResting = true
-                                remainingSeconds = currentExercise.restDurationSeconds
-                            }
-                        }
+                        onClick = { advancePhase() }
                     ) {
                         Icon(imageVector = SkipNext, contentDescription = stringResource(R.string.skip), modifier = Modifier.size(20.dp))
                         Text(stringResource(R.string.skip), modifier = Modifier.padding(start = 4.dp))

@@ -75,6 +75,9 @@ fun AppNavHost(navController: NavHostController) {
                     vm.deleteRoutine(routineId)
                     chatHistoryStore.clear(routineId)
                 },
+                onUndoDeleteRoutine = { routine ->
+                    vm.undoDeleteRoutine(routine)
+                },
                 onOpenSettings = { showSettings = true },
             )
         }

@@ -59,6 +59,14 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun undoDeleteRoutine(routine: Routine) {
+        savedRoutines = savedRoutines + routine
+        if (isBuiltin(routine.id)) {
+            dismissedDefaults = dismissedDefaults - routine.id
+        }
+        saveState()
+    }
+
     private fun isBuiltin(id: String) = id == BUILTIN_PARKOUR_ID || id == BUILTIN_FOOTBALL_ID
 
     private fun builtinRoutines(): List<Routine> {

@@ -1,5 +1,8 @@
 package com.example.liks_sports.ui.screens
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.util.Log
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -69,6 +73,9 @@ fun AiChatDialog(
     var errorText by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    val context = LocalContext.current
+    val notConfiguredMsg = stringResource(R.string.ai_not_configured)
+    val noNetworkMsg = stringResource(R.string.ai_network_error, "No internet connection")
 
     LaunchedEffect(messages.size, streamingContent) {
         listState.animateScrollToItem(Int.MAX_VALUE)
@@ -126,7 +133,7 @@ fun AiChatDialog(
                                     ) {
                                         Column(modifier = Modifier.padding(10.dp)) {
                                             Text(
-                                                text = "Thinking",
+                                                text = stringResource(R.string.ai_thinking),
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -147,7 +154,10 @@ fun AiChatDialog(
                                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = if (streamingReasoning.isEmpty()) "Thinking…" else "Generating…",
+                                        text = if (streamingReasoning.isEmpty())
+                                            stringResource(R.string.ai_thinking_ellipsis)
+                                        else
+                                            stringResource(R.string.ai_generating),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -185,8 +195,12 @@ fun AiChatDialog(
                         onClick = {
                             val msg = input.trim()
                             if (msg.isEmpty() || streamingContent != null) return@IconButton
-                            if (settings.apiUrl.isBlank()) {
-                                errorText = "API endpoint not configured"
+                            if (!settings.isConfigured) {
+                                errorText = notConfiguredMsg
+                                return@IconButton
+                            }
+                            if (!isNetworkAvailable(context)) {
+                                errorText = noNetworkMsg
                                 return@IconButton
                             }
                             input = ""
@@ -199,7 +213,7 @@ fun AiChatDialog(
 
                             scope.launch {
                                 try {
-                                    streamFromAi(settings, routine, fullMessages,
+                                    val result = streamFromAi(settings, routine, fullMessages,
                                         onToken = { token ->
                                             streamingContent = (streamingContent ?: "") + token
                                         },
@@ -207,6 +221,9 @@ fun AiChatDialog(
                                             streamingReasoning = streamingReasoning + token
                                         },
                                     )
+                                    if (!result.complete) {
+                                        Log.w("AiChatDialog", "Stream may be incomplete")
+                                    }
                                     val fullResponse = streamingContent ?: ""
                                     val cleanText = extractMessageText(fullResponse)
                                     val displayText = cleanText ?: fullResponse
@@ -217,6 +234,10 @@ fun AiChatDialog(
                                     }
                                     onAiResponded(displayText)
                                     messages = messages + ChatMessage("assistant", displayText)
+                                    streamingContent = null
+                                    streamingReasoning = ""
+                                } catch (e: AiStreamException) {
+                                    errorText = e.message ?: "Unknown error"
                                     streamingContent = null
                                     streamingReasoning = ""
                                 } catch (e: Exception) {
@@ -250,8 +271,8 @@ fun AiChatDialog(
                         enabled = messages.isNotEmpty() && streamingContent == null,
                     ) {
                         Text(
-                            text = "Clear",
-                            color = MaterialTheme.colorScheme.error,
+                            text = stringResource(R.string.ai_clear),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Spacer(modifier = Modifier.weight(1f))
@@ -283,7 +304,7 @@ private fun ChatBubble(
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = if (isUser) "You" else "AI",
+                    text = if (isUser) stringResource(R.string.ai_you) else stringResource(R.string.ai_ai),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer
@@ -307,13 +328,19 @@ private fun ChatBubble(
     }
 }
 
+private data class StreamResult(
+    val complete: Boolean,
+)
+
+private class AiStreamException(message: String) : Exception(message)
+
 private suspend fun streamFromAi(
     settings: SettingsStore,
     routine: Routine,
     messages: List<ChatMessage>,
     onToken: (String) -> Unit,
     onReasoningToken: (String) -> Unit,
-) = withContext(Dispatchers.IO) {
+): StreamResult = withContext(Dispatchers.IO) {
     val baseUrl = settings.apiUrl.trimEnd('/')
     val url = URL("$baseUrl/chat/completions")
     val connection = url.openConnection() as HttpURLConnection
@@ -350,18 +377,43 @@ private suspend fun streamFromAi(
             os.write(body.toString().toByteArray(Charsets.UTF_8))
         }
 
+        val responseCode = connection.responseCode
+        if (responseCode != HttpURLConnection.HTTP_OK) {
+            val errorStream = connection.errorStream
+            val errorBody = errorStream?.bufferedReader(Charsets.UTF_8)?.readText() ?: ""
+            errorStream?.close()
+            val msg = when (responseCode) {
+                401 -> "Authentication failed. Check your API key."
+                429 -> "Rate limited. Wait and try again."
+                500 -> "Server error. The API may be unavailable."
+                else -> "Unexpected response ($responseCode)"
+            }
+            throw AiStreamException(msg)
+        }
+
         val reader = BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8))
+        var sawFinish = false
         var line: String?
         while (reader.readLine().also { line = it } != null) {
             val l = line ?: continue
             if (l.startsWith("data: ")) {
                 val data = l.removePrefix("data: ").trim()
-                if (data == "[DONE]") break
+                if (data == "[DONE]") {
+                    sawFinish = true
+                    break
+                }
                 try {
                     val chunk = JSONObject(data)
                     val choices = chunk.optJSONArray("choices")
                     if (choices != null && choices.length() > 0) {
-                        val delta = choices.getJSONObject(0).optJSONObject("delta")
+                        val choice = choices.getJSONObject(0)
+
+                        val finishReason = choice.optString("finish_reason", "")
+                        if (finishReason.isNotEmpty()) {
+                            sawFinish = true
+                        }
+
+                        val delta = choice.optJSONObject("delta")
 
                         val raw = delta?.opt("content")
                         val content = if (raw is String) raw else ""
@@ -380,16 +432,23 @@ private suspend fun streamFromAi(
                 }
             }
         }
+        StreamResult(complete = sawFinish)
     } finally {
         connection.disconnect()
     }
 }
 
+private fun isNetworkAvailable(context: Context): Boolean {
+    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
+    val network = cm.activeNetwork ?: return false
+    val caps = cm.getNetworkCapabilities(network) ?: return false
+    return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+}
+
 private fun extractMessageText(fullResponse: String): String? {
-    val jsonMatch = Regex("```json\\s*([\\s\\S]*?)```").find(fullResponse)
-    val jsonStr = jsonMatch?.groupValues?.get(1) ?: return null
+    val jsonMatch = extractJsonBlock(fullResponse) ?: return null
     return try {
-        val response = JSONObject(jsonStr)
+        val response = JSONObject(jsonMatch)
         val actions = response.optJSONArray("actions") ?: return null
         for (i in 0 until actions.length()) {
             val action = actions.getJSONObject(i)
@@ -401,6 +460,11 @@ private fun extractMessageText(fullResponse: String): String? {
     } catch (_: Exception) {
         null
     }
+}
+
+private fun extractJsonBlock(text: String): String? {
+    val jsonMatch = Regex("```json\\s*([\\s\\S]*?)```").find(text)
+    return jsonMatch?.groupValues?.get(1)
 }
 
 private fun buildSystemPrompt(routine: Routine): String {
@@ -445,8 +509,7 @@ Only respond with the JSON actions block — do not include any other text outsi
 }
 
 private fun applyAiEdits(routine: Routine, aiResponse: String): Routine? {
-    val jsonMatch = Regex("```json\\s*([\\s\\S]*?)```").find(aiResponse)
-    val jsonStr = jsonMatch?.groupValues?.get(1) ?: return null
+    val jsonStr = extractJsonBlock(aiResponse) ?: return null
     val response = JSONObject(jsonStr)
     val actions = response.optJSONArray("actions") ?: return null
 

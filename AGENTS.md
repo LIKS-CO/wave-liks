@@ -1,41 +1,39 @@
-# AGENTS.md — liks-sports
+# AGENTS.md
 
-Single-module Android app (Jetpack Compose, no XML).  
-Entrypoint: `app/src/main/java/com/example/liks_sports/MainActivity.kt`
-
-## Commands
+## Build & test
 
 ```sh
-./gradlew assembleDebug               # build
-./gradlew test                         # local JUnit 4 unit tests
-./gradlew connectedDebugAndroidTest    # Compose UI tests (emulator/device)
-./gradlew lint                         # Android lint
+./gradlew assembleDebug                 # debug APK
+./gradlew test                          # unit tests (host JVM)
+./gradlew connectedDebugAndroidTest     # instrumented tests (emulator/device)
+./gradlew lint                          # Android lint
 ```
 
-No CI workflows exist (no `.github/`). No ktfmt/ktlint/spotless config.
+Add all work-in-progress changes to a single commit in this repository.
+
+Use `assembleDebug` not `assemble` — release builds are unconfigured (no signing key).
 
 ## Architecture
 
-- **3 screens:** `RoutineListScreen`, `RoutineDetailScreen`, `ExerciseTimerScreen` — navigation via `NavGraph.kt` (`Routes` object).
-- **Single ViewModel** (`RoutinesViewModel`) created at the `AppNavHost` level with `viewModel()`, passed as callbacks to screens — screens never hold a ViewModel reference.
-- **ViewModel state** uses `mutableStateOf` (Compose observable), not `StateFlow`. Read/write synchronously.
-- **Persistence** via `SharedPreferences` + `org.json` (zero external deps). `RoutinesViewModel` extends `AndroidViewModel` — saves/loads routines on every mutation and on init. Change fields in `Exercise.kt` and `Routine` must be mirrored in `RoutinesViewModel.fromJson()`/`toJson()`.
-- **`data/` package** has only two files: `Exercise.kt` (data classes) and `RoutinesViewModel.kt`. No repository/DAO layer.
-- **Custom vector icons** in `ui/icons/AppIcons.kt`, not Material Icons.
-- `enableEdgeToEdge()` called in `MainActivity.onCreate`.
-- `RoutineDetailScreen` manages a local copy of exercises before committing via `onUpdateRoutine`.
-- `ExerciseTimerScreen` uses `rememberSaveable` extensively (survives config changes), `DisposableEffect` for screen-on + auto-start, and plays a notification sound + vibration on each transition.
+- **Single module** (`:app`), namespace `com.example.liks_sports`. No monorepo, no feature modules.
+- **Zero DI** — `RoutinesViewModel` (the only ViewModel) is shared across all screens via `viewModel()`. `SettingsStore` and `ChatHistoryStore` are instantiated directly with `Context` inside composables using `remember { ... }`.
+- **Persistence** — `SharedPreferences` + `org.json` (manual JSON). No Room, no kotlinx.serialization, no Gson/Moshi. `RoutinesViewModel`, `SettingsStore` (non-secret fields), and `ChatHistoryStore` write to `"liks_sports_prefs"`. The API key is stored in a separate encrypted prefs file using `androidx.security:security-crypto`.
+- **State** — Compose `mutableStateOf` / `derivedStateOf` inside the ViewModel. No `StateFlow`, no `LiveData`.
+- **Navigation** — Navigation Compose with three routes: routine list, routine detail, exercise timer. Route patterns and helpers live in `Routes` object (`app/src/main/java/com/example/liks_sports/ui/navigation/NavGraph.kt`).
 
-## Config
+## Dependencies
 
-- Version catalog: `gradle/libs.versions.toml`
-- `minSdk 24 / targetSdk 36 / compileSdk 36`, Kotlin 2.2.10, AGP 9.2.1, Compose BOM 2026.02.01
-- `kotlin.code.style=official` in `gradle.properties`
+- **Version catalog** (`gradle/libs.versions.toml`) is the single source of truth. Never hardcode version numbers in build files. Use `alias(libs.plugins.xxx)` and `implementation(libs.xxx)`.
+- **Kotlin 2.2.10** with the Compose compiler plugin (`org.jetbrains.kotlin.plugin.compose`). No separate `kotlin-android` plugin is applied — the Compose plugin handles both.
+- **Zero external libraries** beyond standard Jetpack (compose-bom, activity-compose, material3, navigation-compose, lifecycle, security-crypto). Do not add Room, Retrofit, Hilt, Dagger, or any third-party HTTP/JSON library.
+- **No Material Icons dependency** — all icons are custom vector drawables in `ui/icons/AppIcons.kt`. Do not add `material-icons-extended`.
 
-## Gotchas
+## Key conventions
 
-- `connectedDebugAndroidTest` requires emulator/device; `test` is local-only.
-- `Exercise` and `Routine` data classes generate UUIDs on construction — not stable for test assertions expecting fixed IDs.
-- `RoutinesViewModel.addRoutine()` returns the created `Routine` — capture it for assertions.
-- `Routes.timer()` defaults `repeatCount` to `1`, matching the nav argument `defaultValue = 1` in `NavGraph.kt`.
-- Existing test files (`test/` and `androidTest/`) are boilerplate stubs — real tests need to be written.
+- **Kotlin code style**: `official` (per `gradle.properties`).
+- **Built-in routines** use hardcoded IDs `"builtin_parkour"` and `"builtin_football"` — never add more builtins without updating `isBuiltin()` in `RoutinesViewModel`.
+- **Edge-to-edge** is enabled in `MainActivity`. All screens should work with system bar insets.
+- **Test directories**: unit tests in `app/src/test/`, instrumented tests in `app/src/androidTest/`.
+- **ProGuard**: reverse-only rules, no minification for release builds. If minification is ever enabled, the `org.json` serialization in ViewModel needs keep rules.
+- **Backup**: The prefs file with the encrypted API key is excluded from cloud backup via `backup_rules.xml`.
+- **Permissions**: `INTERNET`, `ACCESS_NETWORK_STATE`, `VIBRATE`. The `ACCESS_NETWORK_STATE` supports connectivity checks before API calls.
