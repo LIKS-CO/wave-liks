@@ -43,6 +43,7 @@ import com.example.liks_sports.ui.icons.Add
 import com.example.liks_sports.ui.icons.Delete
 import com.example.liks_sports.ui.icons.Edit
 import com.example.liks_sports.ui.icons.FitnessCenter
+import com.example.liks_sports.ui.icons.Settings
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,6 +53,7 @@ fun RoutineListScreen(
     onRenameRoutine: (String, String) -> Unit,
     onRoutineClick: (String) -> Unit,
     onDeleteRoutine: (String) -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     var showCreateDialog by remember { mutableStateOf(false) }
     var createName by remember { mutableStateOf("") }
@@ -142,6 +144,9 @@ fun RoutineListScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.routine_list_title)) },
+                actions = {
+                    SettingsIconButton(onClick = onOpenSettings)
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,

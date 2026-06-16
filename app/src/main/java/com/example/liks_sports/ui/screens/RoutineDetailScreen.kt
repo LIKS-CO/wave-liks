@@ -57,7 +57,11 @@ import com.example.liks_sports.ui.icons.Close
 import com.example.liks_sports.ui.icons.Delete
 import com.example.liks_sports.ui.icons.Edit
 import com.example.liks_sports.ui.icons.ExpandMore
+import com.example.liks_sports.ui.icons.AutoAwesome
 import com.example.liks_sports.ui.icons.Timer
+import com.example.liks_sports.data.ChatHistoryStore
+import com.example.liks_sports.data.ChatMessage
+import com.example.liks_sports.data.SettingsStore
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,6 +71,9 @@ fun RoutineDetailScreen(
     onUpdateRoutine: (Routine) -> Unit,
     onBack: () -> Unit,
     onStart: (repeatCount: Int) -> Unit,
+    settingsStore: SettingsStore,
+    chatHistoryStore: ChatHistoryStore,
+    onOpenSettings: () -> Unit,
 ) {
     var routineName by rememberSaveable(routine.id) { mutableStateOf(routine.name) }
     var exercises by remember { mutableStateOf(routine.exercises) }
@@ -90,6 +97,8 @@ fun RoutineDetailScreen(
     var renameExerciseId by rememberSaveable { mutableStateOf("") }
     var repeatCount by rememberSaveable { mutableStateOf(1) }
     var showRepsMenu by rememberSaveable { mutableStateOf(false) }
+    var showAiChat by rememberSaveable { mutableStateOf(false) }
+    val chatHistoryState = remember { mutableStateOf(chatHistoryStore.getMessages(routine.id)) }
 
     if (showRenameDialog) {
         AlertDialog(
@@ -178,6 +187,29 @@ fun RoutineDetailScreen(
         )
     }
 
+    if (showAiChat) {
+        AiChatDialog(
+            routine = routine.copy(name = routineName, exercises = exercises),
+            settings = settingsStore,
+            chatHistory = chatHistoryState.value,
+            onSendMessage = { msg ->
+                chatHistoryStore.addMessage(routine.id, ChatMessage("user", msg))
+            },
+            onApplyEdits = { edited ->
+                exercises = edited.exercises
+                routineName = edited.name
+                onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
+            },
+            onAiResponded = { text ->
+                chatHistoryStore.addMessage(routine.id, ChatMessage("assistant", text))
+            },
+            onClearSession = {
+                chatHistoryStore.clear(routine.id)
+            },
+            onDismiss = { showAiChat = false },
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -186,6 +218,9 @@ fun RoutineDetailScreen(
                     IconButton(onClick = onBack) {
                         Icon(imageVector = ArrowBack, contentDescription = stringResource(R.string.back_desc))
                     }
+                },
+                actions = {
+                    SettingsIconButton(onClick = onOpenSettings)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -303,6 +338,13 @@ fun RoutineDetailScreen(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
+                    OutlinedButton(
+                        onClick = { showAiChat = true }
+                    ) {
+                        Icon(imageVector = AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(stringResource(R.string.ai_edit_desc))
+                    }
                     OutlinedButton(
                         onClick = { showAddDialog = true }
                     ) {

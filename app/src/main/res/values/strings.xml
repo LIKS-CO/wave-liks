@@ -67,4 +67,20 @@
     <string name="parkour_tecnica">Parkour technique</string>
     <string name="parkour_caidas_suaves">Soft landings</string>
     <string name="parkour_saltos_precision">Precision jumps</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_desc">Configure AI</string>
+    <string name="api_url_label">API base URL (e.g. https://api.openai.com/v1)</string>
+    <string name="api_key_label">API Key</string>
+    <string name="model_id_label">Model ID</string>
+
+    <!-- AI Chat -->
+    <string name="ai_assistant_title">AI Assistant</string>
+    <string name="ai_edit_desc">AI edit routine</string>
+    <string name="ai_placeholder">Describe how to edit this routine…</string>
+    <string name="ai_send">Send</string>
+    <string name="ai_system_context">Ask the AI to add, remove, or modify exercises in this routine.</string>
+    <string name="ai_no_settings">Configure API settings first (tap ⚙).</string>
+    <string name="close">Close</string>
 </resources>
