@@ -77,7 +77,7 @@ fun RoutineDetailScreen(
     onOpenSettings: () -> Unit,
 ) {
     var routineName by rememberSaveable(routine.id) { mutableStateOf(routine.name) }
-    var exercises by remember { mutableStateOf(routine.exercises) }
+    var exercises by remember(routine.id) { mutableStateOf(routine.exercises) }
     val initialDefaults = remember(routine.id) {
         if (routine.exercises.isEmpty()) {
             30 to 10
@@ -195,17 +195,20 @@ fun RoutineDetailScreen(
             chatHistory = chatHistoryState.value,
             onSendMessage = { msg ->
                 chatHistoryStore.addMessage(routine.id, ChatMessage("user", msg))
+                chatHistoryState.value = chatHistoryStore.getMessages(routine.id)
             },
             onApplyEdits = { edited ->
                 exercises = edited.exercises
                 routineName = edited.name
-                onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
+                onUpdateRoutine(edited)
             },
             onAiResponded = { text ->
                 chatHistoryStore.addMessage(routine.id, ChatMessage("assistant", text))
+                chatHistoryState.value = chatHistoryStore.getMessages(routine.id)
             },
             onClearSession = {
                 chatHistoryStore.clear(routine.id)
+                chatHistoryState.value = emptyList()
             },
             onDismiss = { showAiChat = false },
         )
@@ -214,7 +217,7 @@ fun RoutineDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(routine.name) },
+                title = { Text(routineName) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(imageVector = ArrowBack, contentDescription = stringResource(R.string.back_desc))
@@ -308,6 +311,8 @@ fun RoutineDetailScreen(
                                     if (!ex.overrideDefaults) ex.copy(exerciseDurationSeconds = newVal)
                                     else ex
                                 }
+                            },
+                            onValueChangeFinished = {
                                 onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
                             },
                         )
@@ -321,6 +326,8 @@ fun RoutineDetailScreen(
                                     if (!ex.overrideDefaults) ex.copy(restDurationSeconds = newVal)
                                     else ex
                                 }
+                            },
+                            onValueChangeFinished = {
                                 onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
                             },
                         )
@@ -418,7 +425,7 @@ fun RoutineDetailScreen(
                 }
             }
 
-            itemsIndexed(exercises) { index, exercise ->
+            itemsIndexed(exercises, key = { _, ex -> ex.id }) { index, exercise ->
                 ExerciseCard(
                     exercise = exercise,
                     globalExerciseDuration = globalExerciseDuration,
@@ -431,19 +438,12 @@ fun RoutineDetailScreen(
                     onToggleOverride = { overrideOn ->
                         exercises = exercises.toMutableList().apply {
                             set(
-                                index, if (overrideOn) {
-                                    exercise.copy(
-                                        overrideDefaults = true,
-                                        exerciseDurationSeconds = globalExerciseDuration,
-                                        restDurationSeconds = globalRestDuration,
-                                    )
-                                } else {
-                                    exercise.copy(
-                                        overrideDefaults = false,
-                                        exerciseDurationSeconds = globalExerciseDuration,
-                                        restDurationSeconds = globalRestDuration,
-                                    )
-                                }
+                                index,
+                                exercise.copy(
+                                    overrideDefaults = overrideOn,
+                                    exerciseDurationSeconds = globalExerciseDuration,
+                                    restDurationSeconds = globalRestDuration,
+                                )
                             )
                         }
                         onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
@@ -638,6 +638,7 @@ private fun DurationSlider(
     label: String,
     value: Int,
     onValueChange: (Int) -> Unit,
+    onValueChangeFinished: (() -> Unit)? = null,
 ) {
     Column {
         Row(
@@ -660,6 +661,7 @@ private fun DurationSlider(
         Slider(
             value = value.toFloat(),
             onValueChange = { onValueChange((it / 5f).roundToInt() * 5) },
+            onValueChangeFinished = onValueChangeFinished,
             valueRange = 5f..120f,
             steps = 22,
             modifier = Modifier.fillMaxWidth(),

@@ -60,6 +60,9 @@ fun RoutineListScreen(
     var showRenameDialog by remember { mutableStateOf(false) }
     var renameId by remember { mutableStateOf("") }
     var renameText by remember { mutableStateOf("") }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var deleteId by remember { mutableStateOf("") }
+    var deleteName by remember { mutableStateOf("") }
 
     if (showCreateDialog) {
         AlertDialog(
@@ -134,6 +137,37 @@ fun RoutineListScreen(
                         showRenameDialog = false
                         renameText = ""
                         renameId = ""
+                    }
+                ) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showDeleteDialog = false
+                deleteId = ""
+                deleteName = ""
+            },
+            title = { Text(stringResource(R.string.delete_routine_title)) },
+            text = { Text(stringResource(R.string.delete_routine_confirm, deleteName)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteRoutine(deleteId)
+                        showDeleteDialog = false
+                        deleteId = ""
+                        deleteName = ""
+                    }
+                ) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        deleteId = ""
+                        deleteName = ""
                     }
                 ) { Text(stringResource(R.string.cancel)) }
             },
@@ -251,7 +285,11 @@ fun RoutineListScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                            IconButton(onClick = { onDeleteRoutine(routine.id) }) {
+                            IconButton(onClick = {
+                                deleteId = routine.id
+                                deleteName = routine.name
+                                showDeleteDialog = true
+                            }) {
                                 Icon(
                                     imageVector = Delete,
                                     contentDescription = stringResource(R.string.delete_routine_desc),

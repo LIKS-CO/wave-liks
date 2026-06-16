@@ -1,10 +1,12 @@
 package com.example.liks_sports.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -74,14 +76,15 @@ fun AiChatDialog(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
         Surface(
             shape = MaterialTheme.shapes.extraLarge,
             tonalElevation = 6.dp,
             modifier = Modifier
                 .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.65f),
+                .fillMaxHeight(0.65f)
+                .imePadding(),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
@@ -182,6 +185,10 @@ fun AiChatDialog(
                         onClick = {
                             val msg = input.trim()
                             if (msg.isEmpty() || streamingContent != null) return@IconButton
+                            if (settings.apiUrl.isBlank()) {
+                                errorText = "API endpoint not configured"
+                                return@IconButton
+                            }
                             input = ""
                             errorText = null
                             val userMsg = ChatMessage("user", msg)
@@ -314,6 +321,7 @@ private suspend fun streamFromAi(
         connection.requestMethod = "POST"
         connection.setRequestProperty("Content-Type", "application/json")
         connection.setRequestProperty("Authorization", "Bearer ${settings.apiKey}")
+        connection.instanceFollowRedirects = false
         connection.doOutput = true
         connection.connectTimeout = 30_000
         connection.readTimeout = 120_000
@@ -367,7 +375,9 @@ private suspend fun streamFromAi(
                             withContext(Dispatchers.Main) { onReasoningToken(reasoning) }
                         }
                     }
-                } catch (_: Exception) {}
+                } catch (e: Exception) {
+                    Log.w("AiChatDialog", "SSE parse error", e)
+                }
             }
         }
     } finally {

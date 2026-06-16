@@ -235,13 +235,21 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
     private fun loadState() {
         val prefs = getApplication<Application>()
             .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val json = prefs.getString(KEY_ROUTINES, null)
-        if (json != null) {
-            savedRoutines = fromJson(json)
+        try {
+            val json = prefs.getString(KEY_ROUTINES, null)
+            if (json != null) {
+                savedRoutines = fromJson(json)
+            }
+        } catch (_: Exception) {
+            savedRoutines = emptyList()
         }
-        val dismissedJson = prefs.getString(KEY_DISMISSED, null)
-        if (dismissedJson != null) {
-            dismissedDefaults = fromJsonSet(dismissedJson)
+        try {
+            val dismissedJson = prefs.getString(KEY_DISMISSED, null)
+            if (dismissedJson != null) {
+                dismissedDefaults = fromJsonSet(dismissedJson)
+            }
+        } catch (_: Exception) {
+            dismissedDefaults = emptySet()
         }
     }
 
@@ -269,11 +277,19 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
                 }
             )
         }
-        return arr.toString()
+        return JSONObject().apply {
+            put("format_version", FORMAT_VERSION)
+            put("routines", arr)
+        }.toString()
     }
 
     private fun fromJson(json: String): List<Routine> {
-        val arr = JSONArray(json)
+        val arr = try {
+            val root = JSONObject(json)
+            root.getJSONArray("routines")
+        } catch (_: Exception) {
+            JSONArray(json)
+        }
         return (0 until arr.length()).map { i ->
             val obj = arr.getJSONObject(i)
             val exercisesArr = obj.getJSONArray("exercises")
@@ -313,5 +329,6 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
         private const val KEY_DISMISSED = "dismissed_defaults"
         private const val BUILTIN_PARKOUR_ID = "builtin_parkour"
         private const val BUILTIN_FOOTBALL_ID = "builtin_football"
+        private const val FORMAT_VERSION = 1
     }
 }

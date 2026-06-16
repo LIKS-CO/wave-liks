@@ -18,6 +18,10 @@
     <string name="add_routine_desc">Add routine</string>
     <string name="rename_routine_desc">Rename routine</string>
     <string name="delete_routine_desc">Delete routine</string>
+    <string name="delete_routine_title">Delete Routine</string>
+    <string name="delete_routine_confirm">Are you sure you want to delete \"%1$s\"? This cannot be undone.</string>
+    <string name="delete">Delete</string>
+    <string name="routine_not_found">Routine not found</string>
 
     <!-- RoutineDetailScreen -->
     <string name="rename_exercise">Rename Exercise</string>

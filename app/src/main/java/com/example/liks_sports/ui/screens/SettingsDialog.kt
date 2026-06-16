@@ -60,9 +60,7 @@ fun SettingsDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    store.apiUrl = apiUrl.trim()
-                    store.apiKey = apiKey.trim()
-                    store.modelId = modelId.trim()
+                    store.saveAll(apiUrl.trim(), apiKey.trim(), modelId.trim())
                     onDismiss()
                 }
             ) { Text(stringResource(R.string.save)) }

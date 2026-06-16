@@ -20,6 +20,14 @@ class SettingsStore(context: Context) {
     val isConfigured: Boolean
         get() = apiUrl.isNotBlank() && apiKey.isNotBlank() && modelId.isNotBlank()
 
+    fun saveAll(apiUrl: String, apiKey: String, modelId: String) {
+        prefs.edit()
+            .putString(KEY_API_URL, apiUrl)
+            .putString(KEY_API_KEY, apiKey)
+            .putString(KEY_MODEL_ID, modelId)
+            .apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "liks_sports_prefs"
         private const val KEY_API_URL = "api_url"

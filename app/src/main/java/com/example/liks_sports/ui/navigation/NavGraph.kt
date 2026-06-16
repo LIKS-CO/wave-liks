@@ -1,19 +1,26 @@
 package com.example.liks_sports.ui.navigation
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.example.liks_sports.R
 import com.example.liks_sports.data.ChatHistoryStore
 import com.example.liks_sports.data.RoutinesViewModel
 import com.example.liks_sports.data.SettingsStore
@@ -66,6 +73,7 @@ fun AppNavHost(navController: NavHostController) {
                 },
                 onDeleteRoutine = { routineId ->
                     vm.deleteRoutine(routineId)
+                    chatHistoryStore.clear(routineId)
                 },
                 onOpenSettings = { showSettings = true },
             )
@@ -75,7 +83,17 @@ fun AppNavHost(navController: NavHostController) {
             arguments = listOf(navArgument("routineId") { type = NavType.StringType }),
         ) { backStackEntry ->
             val routineId = backStackEntry.arguments?.getString("routineId") ?: return@composable
-            val routine = vm.routines.find { it.id == routineId } ?: return@composable
+            val routine = vm.routines.find { it.id == routineId }
+
+            if (routine == null) {
+                androidx.compose.material3.Text(
+                    text = stringResource(R.string.routine_not_found),
+                    modifier = androidx.compose.ui.Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                )
+                return@composable
+            }
 
             RoutineDetailScreen(
                 routine = routine,
@@ -100,10 +118,20 @@ fun AppNavHost(navController: NavHostController) {
         ) { backStackEntry ->
             val routineId = backStackEntry.arguments?.getString("routineId") ?: return@composable
             val repeatCount = backStackEntry.arguments?.getInt("repeatCount") ?: 1
-            val routine = vm.routines.find { it.id == routineId } ?: return@composable
+            val timerRoutine = vm.routines.find { it.id == routineId }
+
+            if (timerRoutine == null) {
+                Text(
+                    text = stringResource(R.string.routine_not_found),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                )
+                return@composable
+            }
 
             ExerciseTimerScreen(
-                routine = routine,
+                routine = timerRoutine,
                 repeatCount = repeatCount,
                 onFinish = { navController.popBackStack(Routes.ROUTINES, false) },
                 onOpenSettings = { showSettings = true },

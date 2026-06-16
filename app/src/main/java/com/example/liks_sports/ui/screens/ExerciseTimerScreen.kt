@@ -90,13 +90,15 @@ fun ExerciseTimerScreen(
         } else 0
     }
 
+    var currentRingtone by remember { mutableStateOf<android.media.Ringtone?>(null) }
+
     LaunchedEffect(isRunning, isPaused, remainingSeconds) {
         if (!isRunning || isPaused) return@LaunchedEffect
         delay(1000L)
         if (remainingSeconds > 1) {
             remainingSeconds -= 1
         } else {
-            playAlert(context)
+            playAlert(context, currentRingtone) { currentRingtone = it }
             if (isResting) {
                 val exercise = routine.exercises[currentIndex]
                 if (currentRep < exercise.reps) {
@@ -128,14 +130,18 @@ fun ExerciseTimerScreen(
         }
     }
 
+    var autoStarted by rememberSaveable { mutableStateOf(false) }
     val view = LocalView.current
     DisposableEffect(Unit) {
         view.keepScreenOn = true
-        isRunning = true
         onDispose {
             view.keepScreenOn = false
-            isRunning = false
+            currentRingtone?.stop()
         }
+    }
+    if (!autoStarted && !isComplete) {
+        isRunning = true
+        autoStarted = true
     }
 
     Scaffold(
@@ -187,6 +193,17 @@ fun ExerciseTimerScreen(
                 Spacer(modifier = Modifier.height(32.dp))
                 Button(onClick = onFinish) {
                     Text(stringResource(R.string.done))
+                }
+            } else if (routine.exercises.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.no_exercises_yet),
+                    style = MaterialTheme.typography.headlineSmall,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(32.dp))
+                Button(onClick = onFinish) {
+                    Text(stringResource(R.string.back_desc))
                 }
             } else if (currentExercise != null) {
                 Text(
@@ -322,11 +339,13 @@ private fun formatTime(seconds: Int): String {
     return "%d:%02d".format(mins, secs)
 }
 
-private fun playAlert(context: Context) {
+private fun playAlert(context: Context, previous: android.media.Ringtone?, setRingtone: (android.media.Ringtone?) -> Unit) {
     try {
+        previous?.stop()
         val notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         val ringtone = RingtoneManager.getRingtone(context, notification)
         ringtone?.play()
+        setRingtone(ringtone)
     } catch (_: Exception) {}
 
     try {

@@ -18,17 +18,21 @@ class ChatHistoryStore(context: Context) {
         }
     }
 
+    private val lock = Any()
+
     fun addMessage(routineId: String, message: ChatMessage) {
-        val messages = getMessages(routineId).toMutableList()
-        messages.add(message)
-        val arr = JSONArray()
-        for (msg in messages) {
-            arr.put(JSONObject().apply {
-                put("role", msg.role)
-                put("content", msg.content)
-            })
+        synchronized(lock) {
+            val messages = getMessages(routineId).toMutableList()
+            messages.add(message)
+            val arr = JSONArray()
+            for (msg in messages) {
+                arr.put(JSONObject().apply {
+                    put("role", msg.role)
+                    put("content", msg.content)
+                })
+            }
+            prefs.edit().putString(keyFor(routineId), arr.toString()).apply()
         }
-        prefs.edit().putString(keyFor(routineId), arr.toString()).apply()
     }
 
     fun clear(routineId: String) {
