@@ -1,6 +1,7 @@
 package com.example.liks_sports.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
@@ -556,7 +558,9 @@ private fun ExerciseCard(
         if (exercise.overrideDefaults) exercise.restDurationSeconds else globalRestDuration
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggleOverride(!exercise.overrideDefaults) },
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column {
@@ -566,139 +570,132 @@ private fun ExerciseCard(
                     .padding(start = 16.dp, top = 12.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(end = 4.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = exercise.name,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.weight(1f, fill = false),
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        IconButton(
-                            onClick = onRenameExercise,
-                            modifier = Modifier.size(24.dp),
-                        ) {
-                            Icon(
-                                imageVector = Edit,
-                                contentDescription = stringResource(R.string.rename_desc),
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = stringResource(R.string.reps_label),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Box {
-                            OutlinedButton(
-                                onClick = { showRepsMenu = true },
-                                modifier = Modifier.height(28.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                            ) {
-                                Text(
-                                    text = "${exercise.reps}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                                Spacer(modifier = Modifier.width(2.dp))
-                                Icon(
-                                    imageVector = ExpandMore,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = showRepsMenu,
-                                onDismissRequest = { showRepsMenu = false },
-                            ) {
-                                (1..10).forEach { num ->
-                                    DropdownMenuItem(
-                                        text = { Text("$num") },
-                                        onClick = {
-                                            onRepsChange(num)
-                                            showRepsMenu = false
-                                        },
-                                    )
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = stringResource(R.string.exercise_rest_format, displayExerciseDuration, displayRestDuration),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                Text(
+                    text = exercise.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.wrapContentWidth(),
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                IconButton(onClick = onRenameExercise, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        imageVector = Edit,
+                        contentDescription = stringResource(R.string.rename_desc),
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row {
-                        if (onMoveUp != null) {
-                            IconButton(onClick = onMoveUp, modifier = Modifier.size(28.dp)) {
-                                Icon(
-                                    imageVector = ArrowDropUp,
-                                    contentDescription = stringResource(R.string.move_up_desc),
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        } else {
-                            Spacer(modifier = Modifier.size(28.dp))
-                        }
-                        if (onMoveDown != null) {
-                            IconButton(onClick = onMoveDown, modifier = Modifier.size(28.dp)) {
-                                Icon(
-                                    imageVector = ArrowDropDown,
-                                    contentDescription = stringResource(R.string.move_down_desc),
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        } else {
-                            Spacer(modifier = Modifier.size(28.dp))
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Switch(
-                            checked = exercise.overrideDefaults,
-                            onCheckedChange = { onToggleOverride(it) },
-                            thumbContent = {
-                                if (exercise.overrideDefaults) {
-                                    Icon(
-                                        imageVector = Check,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Close,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                    )
-                                }
-                            },
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        imageVector = Delete,
+                        contentDescription = stringResource(R.string.delete_exercise_desc),
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
+                IconButton(
+                    onClick = { onMoveUp?.invoke() },
+                    modifier = Modifier.size(40.dp),
+                    enabled = onMoveUp != null,
+                ) {
+                    Icon(
+                        imageVector = ArrowDropUp,
+                        contentDescription = stringResource(R.string.move_up_desc),
+                        modifier = Modifier.size(24.dp),
+                        tint = if (onMoveUp != null) MaterialTheme.colorScheme.onSurfaceVariant
+                               else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                    )
+                }
+                IconButton(
+                    onClick = { onMoveDown?.invoke() },
+                    modifier = Modifier.size(40.dp),
+                    enabled = onMoveDown != null,
+                ) {
+                    Icon(
+                        imageVector = ArrowDropDown,
+                        contentDescription = stringResource(R.string.move_down_desc),
+                        modifier = Modifier.size(24.dp),
+                        tint = if (onMoveDown != null) MaterialTheme.colorScheme.onSurfaceVariant
+                               else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.reps_label),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Box {
+                    OutlinedButton(
+                        onClick = { showRepsMenu = true },
+                        modifier = Modifier.height(36.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    ) {
+                        Text(
+                            text = "${exercise.reps}",
+                            style = MaterialTheme.typography.bodySmall,
                         )
                         Spacer(modifier = Modifier.width(2.dp))
-                        IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
-                            Icon(
-                                imageVector = Delete,
-                                contentDescription = stringResource(R.string.delete_exercise_desc),
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(18.dp),
+                        Icon(
+                            imageVector = ExpandMore,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showRepsMenu,
+                        onDismissRequest = { showRepsMenu = false },
+                    ) {
+                        (1..10).forEach { num ->
+                            DropdownMenuItem(
+                                text = { Text("$num") },
+                                onClick = {
+                                    onRepsChange(num)
+                                    showRepsMenu = false
+                                },
                             )
                         }
                     }
+                }
+                Text(
+                    text = stringResource(R.string.exercise_rest_format, displayExerciseDuration, displayRestDuration),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(end = 16.dp, bottom = 8.dp),
+                ) {
+                    Switch(
+                        checked = exercise.overrideDefaults,
+                        onCheckedChange = { onToggleOverride(it) },
+                        thumbContent = {
+                            if (exercise.overrideDefaults) {
+                                Icon(
+                                    imageVector = Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Close,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
+                        },
+                    )
                     Text(
                         text = stringResource(R.string.override_label),
                         style = MaterialTheme.typography.labelSmall,
@@ -708,7 +705,7 @@ private fun ExerciseCard(
             }
 
             AnimatedVisibility(visible = exercise.overrideDefaults) {
-                Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+                Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
                     DurationSlider(
                         label = stringResource(R.string.exercise_label),
                         contentDesc = stringResource(R.string.exercise_duration_desc),
