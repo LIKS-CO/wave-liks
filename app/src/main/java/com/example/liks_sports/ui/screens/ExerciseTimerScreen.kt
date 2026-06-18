@@ -61,7 +61,7 @@ import kotlinx.coroutines.delay
 fun ExerciseTimerScreen(
     routine: Routine,
     repeatCount: Int = 1,
-    onFinish: () -> Unit,
+    onFinish: (completed: Boolean, elapsedSeconds: Int) -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -77,6 +77,7 @@ fun ExerciseTimerScreen(
     var isPaused by rememberSaveable { mutableStateOf(false) }
     var isComplete by rememberSaveable { mutableStateOf(false) }
     var isRunning by rememberSaveable { mutableStateOf(false) }
+    var elapsedSeconds by rememberSaveable { mutableIntStateOf(0) }
 
     val currentExercise = remember(currentIndex) {
         routine.exercises.getOrNull(currentIndex)
@@ -126,6 +127,7 @@ fun ExerciseTimerScreen(
         if (!isRunning || isPaused) return@LaunchedEffect
         if (remainingSeconds <= 0) return@LaunchedEffect
         delay(1000L)
+        elapsedSeconds += 1
         if (remainingSeconds > 1) {
             remainingSeconds -= 1
         } else {
@@ -156,7 +158,7 @@ fun ExerciseTimerScreen(
             TopAppBar(
                 title = { Text(if (isComplete) stringResource(R.string.workout_complete) else routine.name) },
                 navigationIcon = {
-                    IconButton(onClick = onFinish) {
+                    IconButton(onClick = { onFinish(isComplete, elapsedSeconds) }) {
                         Icon(imageVector = ArrowBack, contentDescription = stringResource(R.string.back_desc))
                     }
                 },
@@ -195,7 +197,7 @@ fun ExerciseTimerScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.height(32.dp))
-                Button(onClick = onFinish) {
+                Button(onClick = { onFinish(true, elapsedSeconds) }) {
                     Text(stringResource(R.string.done))
                 }
             } else if (routine.exercises.isEmpty()) {
@@ -206,7 +208,7 @@ fun ExerciseTimerScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.height(32.dp))
-                Button(onClick = onFinish) {
+                Button(onClick = { onFinish(false, 0) }) {
                     Text(stringResource(R.string.back_desc))
                 }
             } else if (currentExercise != null) {
@@ -277,6 +279,7 @@ fun ExerciseTimerScreen(
                             currentRep = 1
                             isResting = false
                             remainingSeconds = routine.exercises.firstOrNull()?.exerciseDurationSeconds ?: 0
+                            elapsedSeconds = 0
                             isRunning = true
                         }
                     ) {

@@ -28,6 +28,8 @@ import com.example.liks_sports.data.ChatHistoryStore
 import com.example.liks_sports.data.ChatMessage
 import com.example.liks_sports.data.RoutinesViewModel
 import com.example.liks_sports.data.SettingsStore
+import com.example.liks_sports.data.WorkoutHistoryStore
+import com.example.liks_sports.data.WorkoutSession
 import com.example.liks_sports.data.applyAppLanguage
 import com.example.liks_sports.ui.screens.ExerciseTimerScreen
 import com.example.liks_sports.ui.screens.GeneralSettingsDialog
@@ -95,6 +97,9 @@ fun AppNavHost(navController: NavHostController) {
                 composable(Routes.ROUTINES) {
                     RoutineListScreen(
                         routines = vm.routines,
+                        workoutStats = vm.workoutStats,
+                        lastSessionForRoutine = vm.lastSessionForRoutine,
+                        routineDoneCounts = vm.routineDoneCounts,
                         onCreateRoutine = { name ->
                             val routine = vm.addRoutine(name)
                             navController.navigate(Routes.routineDetail(routine.id))
@@ -176,7 +181,22 @@ fun AppNavHost(navController: NavHostController) {
                     ExerciseTimerScreen(
                         routine = timerRoutine,
                         repeatCount = repeatCount,
-                        onFinish = { navController.popBackStack(Routes.ROUTINES, false) },
+                        onFinish = { completed, elapsed ->
+                            if (completed || elapsed > 0) {
+                                vm.recordSession(
+                                    WorkoutSession(
+                                        routineId = timerRoutine.id,
+                                        routineName = timerRoutine.name,
+                                        dateEpochDay = WorkoutHistoryStore.todayEpochDay(),
+                                        durationSeconds = elapsed,
+                                        exerciseCount = timerRoutine.exercises.size,
+                                        rounds = repeatCount,
+                                        completed = completed,
+                                    )
+                                )
+                            }
+                            navController.popBackStack(Routes.ROUTINES, false)
+                        },
                     )
                 }
             }

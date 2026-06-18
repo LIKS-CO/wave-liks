@@ -12,6 +12,7 @@ navigationCompose = "2.9.0"
 json = "20240303"
 litertlm = "0.13.1"
 appcompat = "1.7.0"
+desugarJdkLibs = "2.1.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -34,6 +35,7 @@ androidx-navigation-compose = { group = "androidx.navigation", name = "navigatio
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 google-ai-edge-litertlm = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version.ref = "litertlm" }
 json = { group = "org.json", name = "json", version.ref = "json" }
+desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

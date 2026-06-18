@@ -31,6 +31,7 @@ android {
         }
     }
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
@@ -53,6 +54,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.security.crypto)
     implementation(libs.google.ai.edge.litertlm)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
     testImplementation(libs.junit)
     testImplementation(libs.json)
     androidTestImplementation(platform(libs.androidx.compose.bom))

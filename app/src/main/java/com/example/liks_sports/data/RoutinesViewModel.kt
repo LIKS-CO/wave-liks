@@ -19,6 +19,9 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
     private var dismissedDefaults by mutableStateOf(setOf<String>())
     private var localeVersion by mutableIntStateOf(0)
 
+    private val workoutHistoryStore by lazy { WorkoutHistoryStore(getApplication()) }
+    private var workoutSessions by mutableStateOf<List<WorkoutSession>>(emptyList())
+
     val routines by derivedStateOf {
         localeVersion
         val overrides = savedRoutines.associateBy { it.id }
@@ -30,6 +33,26 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
     val hasDismissedDefaults by derivedStateOf {
         localeVersion
         dismissedDefaults.isNotEmpty()
+    }
+
+    val workoutStats by derivedStateOf {
+        localeVersion
+        WorkoutStatsCalculator.compute(workoutSessions)
+    }
+
+    val lastSessionForRoutine by derivedStateOf {
+        localeVersion
+        lastSessionByRoutine(workoutSessions)
+    }
+
+    val routineDoneCounts by derivedStateOf {
+        localeVersion
+        countByRoutine(workoutSessions)
+    }
+
+    fun recordSession(session: WorkoutSession) {
+        workoutHistoryStore.addSession(session)
+        workoutSessions = workoutHistoryStore.getSessions()
     }
 
     val localLlmEngine: LocalLlmEngine by lazy { LocalLlmEngine(getApplication()) }
@@ -252,59 +275,35 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
                 name = res.getString(R.string.football_name),
                 exercises = listOf(
                     Exercise(
-                        id = "football_hip_glute",
-                        name = res.getString(R.string.football_hip_glute),
-                        reps = 2,
-                        exerciseDurationSeconds = 30,
-                        restDurationSeconds = 30,
-                        overrideDefaults = false,
-                    ),
-                    Exercise(
-                        id = "football_lateral_lunge",
-                        name = res.getString(R.string.football_lateral_lunge),
-                        reps = 3,
+                        id = "football_rote_suave",
+                        name = res.getString(R.string.football_rote_suave),
+                        reps = 1,
                         exerciseDurationSeconds = 45,
-                        restDurationSeconds = 45,
-                        overrideDefaults = true,
-                    ),
-                    Exercise(
-                        id = "football_nordic_curl",
-                        name = res.getString(R.string.football_nordic_curl),
-                        reps = 3,
-                        exerciseDurationSeconds = 60,
-                        restDurationSeconds = 60,
-                        overrideDefaults = true,
-                    ),
-                    Exercise(
-                        id = "football_ankle_hold",
-                        name = res.getString(R.string.football_ankle_hold),
-                        reps = 2,
-                        exerciseDurationSeconds = 30,
-                        restDurationSeconds = 20,
-                        overrideDefaults = true,
-                    ),
-                    Exercise(
-                        id = "football_lateral_shuffle",
-                        name = res.getString(R.string.football_lateral_shuffle),
-                        reps = 4,
-                        exerciseDurationSeconds = 30,
                         restDurationSeconds = 30,
-                        overrideDefaults = false,
-                    ),
-                    Exercise(
-                        id = "football_sprint",
-                        name = res.getString(R.string.football_sprint),
-                        reps = 4,
-                        exerciseDurationSeconds = 30,
-                        restDurationSeconds = 45,
                         overrideDefaults = true,
                     ),
                     Exercise(
-                        id = "football_calf_raise",
-                        name = res.getString(R.string.football_calf_raise),
-                        reps = 2,
-                        exerciseDurationSeconds = 15,
-                        restDurationSeconds = 10,
+                        id = "football_zig_zag_platos",
+                        name = res.getString(R.string.football_zig_zag_platos),
+                        reps = 1,
+                        exerciseDurationSeconds = 45,
+                        restDurationSeconds = 30,
+                        overrideDefaults = true,
+                    ),
+                    Exercise(
+                        id = "football_skipping_platos",
+                        name = res.getString(R.string.football_skipping_platos),
+                        reps = 1,
+                        exerciseDurationSeconds = 45,
+                        restDurationSeconds = 30,
+                        overrideDefaults = true,
+                    ),
+                    Exercise(
+                        id = "football_metralletas",
+                        name = res.getString(R.string.football_metralletas),
+                        reps = 1,
+                        exerciseDurationSeconds = 45,
+                        restDurationSeconds = 30,
                         overrideDefaults = true,
                     ),
                 ),
@@ -339,6 +338,11 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
             }
         } catch (_: Exception) {
             dismissedDefaults = emptySet()
+        }
+        try {
+            workoutSessions = workoutHistoryStore.getSessions()
+        } catch (_: Exception) {
+            workoutSessions = emptyList()
         }
     }
 

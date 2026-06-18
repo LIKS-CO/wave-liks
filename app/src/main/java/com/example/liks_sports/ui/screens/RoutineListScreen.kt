@@ -1,6 +1,7 @@
 package com.example.liks_sports.ui.screens
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,11 +10,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -41,24 +44,33 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import com.example.liks_sports.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.liks_sports.data.Routine
+import com.example.liks_sports.data.WorkoutSession
+import com.example.liks_sports.data.WorkoutStats
 import com.example.liks_sports.ui.icons.Add
 import com.example.liks_sports.ui.icons.Delete
 import com.example.liks_sports.ui.icons.Edit
 import com.example.liks_sports.ui.icons.FitnessCenter
 import com.example.liks_sports.ui.icons.Settings
+import java.time.LocalDate
+import java.time.ZoneId
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RoutineListScreen(
     routines: List<Routine>,
+    workoutStats: WorkoutStats,
+    lastSessionForRoutine: Map<String, WorkoutSession>,
+    routineDoneCounts: Map<String, Int>,
     onCreateRoutine: (String) -> Unit,
     onRenameRoutine: (String, String) -> Unit,
     onRoutineClick: (String) -> Unit,
@@ -232,41 +244,17 @@ fun RoutineListScreen(
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
     ) { padding ->
-        if (routines.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Icon(
-                    imageVector = FitnessCenter,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                )
-                Spacer(modifier = Modifier.padding(8.dp))
-                Text(
-                    text = stringResource(R.string.no_routines_yet),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = stringResource(R.string.tap_to_create),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    textAlign = TextAlign.Center,
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item { DashboardHeader(workoutStats) }
+            if (routines.isEmpty()) {
+                item { NoRoutinesContent() }
+            } else {
                 items(routines, key = { it.id }) { routine ->
                     val dismissState = rememberSwipeToDismissBoxState(
                         confirmValueChange = { value ->
@@ -308,6 +296,8 @@ fun RoutineListScreen(
                     ) {
                         RoutineCard(
                             routine = routine,
+                            lastSession = lastSessionForRoutine[routine.id],
+                            doneCount = routineDoneCounts[routine.id] ?: 0,
                             onRoutineClick = onRoutineClick,
                             onRenameRoutine = { r ->
                                 renameId = r.id
@@ -328,8 +318,39 @@ fun RoutineListScreen(
 }
 
 @Composable
+private fun NoRoutinesContent() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            imageVector = FitnessCenter,
+            contentDescription = null,
+            modifier = Modifier.size(72.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+        )
+        Spacer(modifier = Modifier.padding(8.dp))
+        Text(
+            text = stringResource(R.string.no_routines_yet),
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = stringResource(R.string.tap_to_create),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
 private fun RoutineCard(
     routine: Routine,
+    lastSession: WorkoutSession?,
+    doneCount: Int,
     onRoutineClick: (String) -> Unit,
     onRenameRoutine: (Routine) -> Unit,
     onDeleteRoutine: (Routine) -> Unit,
@@ -337,20 +358,36 @@ private fun RoutineCard(
     Card(
         onClick = { onRoutineClick(routine.id) },
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 20.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
+                .padding(start = 16.dp, top = 14.dp, bottom = 14.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = FitnessCenter,
-                contentDescription = null,
-                modifier = Modifier.size(40.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.tertiary,
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = FitnessCenter,
+                    contentDescription = null,
+                    modifier = Modifier.size(26.dp),
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -382,6 +419,22 @@ private fun RoutineCard(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (lastSession != null || doneCount > 0) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (lastSession != null) {
+                            BadgeChip(
+                                text = stringResource(
+                                    R.string.dashboard_last_done,
+                                    relativeDayLabel(lastSession.dateEpochDay),
+                                ),
+                            )
+                        }
+                        if (doneCount > 0) {
+                            BadgeChip(text = stringResource(R.string.dashboard_done_count, doneCount))
+                        }
+                    }
+                }
             }
             IconButton(onClick = { onDeleteRoutine(routine) }) {
                 Icon(
@@ -391,5 +444,33 @@ private fun RoutineCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun BadgeChip(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+@Composable
+private fun relativeDayLabel(epochDay: Long): String {
+    val today = LocalDate.now(ZoneId.systemDefault()).toEpochDay()
+    val diff = today - epochDay
+    return when {
+        diff <= 0 -> stringResource(R.string.dashboard_today)
+        diff == 1L -> stringResource(R.string.dashboard_yesterday)
+        else -> stringResource(R.string.dashboard_days_ago, diff.toInt())
     }
 }

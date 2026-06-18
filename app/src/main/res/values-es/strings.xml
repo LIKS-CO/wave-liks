@@ -24,6 +24,22 @@
     <string name="delete">Eliminar</string>
     <string name="routine_not_found">Rutina no encontrada</string>
 
+    <!-- Dashboard -->
+    <string name="dashboard_day_streak">%1$d días de racha</string>
+    <string name="dashboard_longest_streak">Racha más larga: %1$d</string>
+    <string name="dashboard_this_week">Esta semana</string>
+    <string name="dashboard_total_workouts">Entrenos totales</string>
+    <string name="dashboard_total_time">Tiempo activo</string>
+    <string name="dashboard_7day_title">Últimos 7 días</string>
+    <string name="dashboard_empty_title">Empieza tu racha</string>
+    <string name="dashboard_empty_body">Completa tu primer entreno para empezar a seguir tu progreso aquí.</string>
+    <string name="dashboard_last_done">Último %1$s</string>
+    <string name="dashboard_done_count">Hecho ×%1$d</string>
+    <string name="dashboard_today">hoy</string>
+    <string name="dashboard_yesterday">ayer</string>
+    <string name="dashboard_days_ago">hace %1$d días</string>
+    <string name="dashboard_never">Nunca</string>
+
     <!-- RoutineDetailScreen -->
     <string name="rename_exercise">Renombrar Ejercicio</string>
     <string name="exercise_name">Nombre del ejercicio</string>
@@ -78,13 +94,10 @@
     <string name="parkour_caidas_suaves">Caídas suaves</string>
     <string name="parkour_saltos_precision">Saltos precisión</string>
     <string name="football_name">Fútbol</string>
-    <string name="football_hip_glute">Cadera y glúteo</string>
-    <string name="football_lateral_lunge">Estocada lateral</string>
-    <string name="football_nordic_curl">Curl nórdico</string>
-    <string name="football_ankle_hold">Equilibrio tobillo</string>
-    <string name="football_lateral_shuffle">Desplazamiento lateral</string>
-    <string name="football_sprint">Sprint progresivo</string>
-    <string name="football_calf_raise">Elevación talones</string>
+    <string name="football_rote_suave">Rote suave</string>
+    <string name="football_zig_zag_platos">Zig-zag entre platos</string>
+    <string name="football_skipping_platos">Skipping (con platos)</string>
+    <string name="football_metralletas">Metralletas (arranco a velocidad)</string>
 
     <!-- Settings -->
     <string name="settings_title">Configuración de IA</string>

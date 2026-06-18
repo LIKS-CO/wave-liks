@@ -24,6 +24,22 @@
     <string name="delete">Delete</string>
     <string name="routine_not_found">Routine not found</string>
 
+    <!-- Dashboard -->
+    <string name="dashboard_day_streak">%1$d-day streak</string>
+    <string name="dashboard_longest_streak">Longest streak: %1$d</string>
+    <string name="dashboard_this_week">This week</string>
+    <string name="dashboard_total_workouts">Total workouts</string>
+    <string name="dashboard_total_time">Active time</string>
+    <string name="dashboard_7day_title">Last 7 days</string>
+    <string name="dashboard_empty_title">Start your streak</string>
+    <string name="dashboard_empty_body">Complete your first workout to start tracking your progress here.</string>
+    <string name="dashboard_last_done">Last done %1$s</string>
+    <string name="dashboard_done_count">Done ×%1$d</string>
+    <string name="dashboard_today">today</string>
+    <string name="dashboard_yesterday">yesterday</string>
+    <string name="dashboard_days_ago">%1$d days ago</string>
+    <string name="dashboard_never">Never</string>
+
     <!-- RoutineDetailScreen -->
     <string name="rename_exercise">Rename Exercise</string>
     <string name="exercise_name">Exercise name</string>
@@ -78,13 +94,10 @@
     <string name="parkour_caidas_suaves">Soft landings</string>
     <string name="parkour_saltos_precision">Precision jumps</string>
     <string name="football_name">Football</string>
-    <string name="football_hip_glute">Hip &amp; glute walk</string>
-    <string name="football_lateral_lunge">Lateral lunge</string>
-    <string name="football_nordic_curl">Nordic curl</string>
-    <string name="football_ankle_hold">Ankle hold</string>
-    <string name="football_lateral_shuffle">Lateral shuffle</string>
-    <string name="football_sprint">Sprint build-up</string>
-    <string name="football_calf_raise">Calf raise</string>
+    <string name="football_rote_suave">Soft touch</string>
+    <string name="football_zig_zag_platos">Zig-zag between discs</string>
+    <string name="football_skipping_platos">Skipping (with discs)</string>
+    <string name="football_metralletas">Sprints (explosive starts)</string>
 
     <!-- Settings -->
     <string name="settings_title">AI Settings</string>
