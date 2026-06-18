@@ -54,7 +54,6 @@ import com.example.liks_sports.ui.icons.Delete
 import com.example.liks_sports.ui.icons.Edit
 import com.example.liks_sports.ui.icons.FitnessCenter
 import com.example.liks_sports.ui.icons.Settings
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,7 +64,7 @@ fun RoutineListScreen(
     onRoutineClick: (String) -> Unit,
     onDeleteRoutine: (String) -> Unit,
     onUndoDeleteRoutine: (Routine) -> Unit,
-    onOpenSettings: () -> Unit,
+    onOpenGeneralSettings: () -> Unit,
 ) {
     var showCreateDialog by remember { mutableStateOf(false) }
     var createName by remember { mutableStateOf("") }
@@ -210,7 +209,12 @@ fun RoutineListScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.routine_list_title)) },
                 actions = {
-                    SettingsIconButton(onClick = onOpenSettings)
+                    IconButton(onClick = onOpenGeneralSettings) {
+                        Icon(
+                            imageVector = Settings,
+                            contentDescription = stringResource(R.string.general_settings_desc),
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,

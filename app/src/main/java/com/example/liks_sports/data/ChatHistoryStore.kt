@@ -9,6 +9,8 @@ data class ChatMessage(val role: String, val content: String)
 class ChatHistoryStore(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    private val lock = Any()
+
     fun getMessages(routineId: String): List<ChatMessage> {
         val json = prefs.getString(keyFor(routineId), null) ?: return emptyList()
         val arr = JSONArray(json)
@@ -18,20 +20,20 @@ class ChatHistoryStore(context: Context) {
         }
     }
 
-    private val lock = Any()
-
     fun addMessage(routineId: String, message: ChatMessage) {
         synchronized(lock) {
             val messages = getMessages(routineId).toMutableList()
             messages.add(message)
-            val arr = JSONArray()
-            for (msg in messages) {
-                arr.put(JSONObject().apply {
-                    put("role", msg.role)
-                    put("content", msg.content)
-                })
-            }
-            prefs.edit().putString(keyFor(routineId), arr.toString()).apply()
+            writeMessages(routineId, trim(messages))
+        }
+    }
+
+    fun addMessages(routineId: String, newMessages: List<ChatMessage>) {
+        if (newMessages.isEmpty()) return
+        synchronized(lock) {
+            val messages = getMessages(routineId).toMutableList()
+            messages.addAll(newMessages)
+            writeMessages(routineId, trim(messages))
         }
     }
 
@@ -39,9 +41,24 @@ class ChatHistoryStore(context: Context) {
         prefs.edit().remove(keyFor(routineId)).apply()
     }
 
+    private fun writeMessages(routineId: String, messages: List<ChatMessage>) {
+        val arr = JSONArray()
+        for (msg in messages) {
+            arr.put(JSONObject().apply {
+                put("role", msg.role)
+                put("content", msg.content)
+            })
+        }
+        prefs.edit().putString(keyFor(routineId), arr.toString()).apply()
+    }
+
+    private fun trim(messages: List<ChatMessage>): List<ChatMessage> =
+        if (messages.size > MAX_MESSAGES) messages.takeLast(MAX_MESSAGES) else messages
+
     private fun keyFor(routineId: String) = "chat_$routineId"
 
     companion object {
         private const val PREFS_NAME = "liks_sports_prefs"
+        private const val MAX_MESSAGES = 50
     }
 }

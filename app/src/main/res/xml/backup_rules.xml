@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+   Backup rules. The encrypted API key lives in liks_sports_secure.xml and must
+   never be backed up. Routine data (liks_sports_prefs.xml) is safe to back up.
+   The on-device Gemma model file (~2.58 GB) in files/ is excluded from cloud
+   backup to avoid wasting bandwidth/storage; it is re-downloaded on restore.
+   Note: This file is ignored for devices older than API 31.
+   See https://developer.android.com/guide/topics/data/autobackup for details.
 -->
 <full-backup-content>
-    <exclude domain="sharedpref" path="liks_sports_prefs.xml"/>
+    <exclude domain="sharedpref" path="liks_sports_secure.xml"/>
+    <exclude domain="file" path="gemma-4-E2B-it.litertlm"/>
+    <exclude domain="file" path="gemma-4-E2B-it.litertlm.tmp"/>
 </full-backup-content>

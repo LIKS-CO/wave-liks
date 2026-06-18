@@ -62,7 +62,6 @@ fun ExerciseTimerScreen(
     routine: Routine,
     repeatCount: Int = 1,
     onFinish: () -> Unit,
-    onOpenSettings: () -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -160,9 +159,6 @@ fun ExerciseTimerScreen(
                     IconButton(onClick = onFinish) {
                         Icon(imageVector = ArrowBack, contentDescription = stringResource(R.string.back_desc))
                     }
-                },
-                actions = {
-                    SettingsIconButton(onClick = onOpenSettings)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,

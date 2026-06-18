@@ -42,11 +42,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
@@ -75,7 +77,44 @@ import com.example.liks_sports.data.ChatHistoryStore
 import com.example.liks_sports.data.ChatMessage
 import com.example.liks_sports.data.SettingsStore
 import kotlinx.coroutines.delay
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlin.math.roundToInt
+
+private val ExercisesSaver = Saver<List<Exercise>, String>(
+    save = { list ->
+        val arr = JSONArray()
+        for (e in list) {
+            arr.put(JSONObject().apply {
+                put("id", e.id)
+                put("name", e.name)
+                put("reps", e.reps)
+                put("exerciseDurationSeconds", e.exerciseDurationSeconds)
+                put("restDurationSeconds", e.restDurationSeconds)
+                put("overrideDefaults", e.overrideDefaults)
+            })
+        }
+        arr.toString()
+    },
+    restore = { str ->
+        try {
+            val arr = JSONArray(str)
+            (0 until arr.length()).map { i ->
+                val e = arr.getJSONObject(i)
+                Exercise(
+                    id = e.getString("id"),
+                    name = e.getString("name"),
+                    reps = e.getInt("reps"),
+                    exerciseDurationSeconds = e.getInt("exerciseDurationSeconds"),
+                    restDurationSeconds = e.getInt("restDurationSeconds"),
+                    overrideDefaults = e.getBoolean("overrideDefaults"),
+                )
+            }
+        } catch (_: Exception) {
+            null
+        }
+    },
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -86,10 +125,14 @@ fun RoutineDetailScreen(
     onStart: (repeatCount: Int) -> Unit,
     settingsStore: SettingsStore,
     chatHistoryStore: ChatHistoryStore,
+    localEngine: com.example.liks_sports.data.LocalLlmEngine,
     onOpenSettings: () -> Unit,
 ) {
     var routineName by rememberSaveable(routine.id) { mutableStateOf(routine.name) }
-    var exercises by remember(routine.id) { mutableStateOf(routine.exercises) }
+    val savedExercises: List<Exercise> = rememberSaveable(routine.id, saver = ExercisesSaver) {
+        routine.exercises
+    }
+    var exercises by remember(savedExercises) { mutableStateOf(savedExercises) }
     val initialDefaults = remember(routine.id) {
         if (routine.exercises.isEmpty()) {
             30 to 10
@@ -101,8 +144,12 @@ fun RoutineDetailScreen(
             exerciseMode to restMode
         }
     }
-    var globalExerciseDuration by remember { mutableStateOf(initialDefaults.first) }
-    var globalRestDuration by remember { mutableStateOf(initialDefaults.second) }
+    var globalExerciseDuration by rememberSaveable(routine.id) {
+        mutableIntStateOf(initialDefaults.first)
+    }
+    var globalRestDuration by rememberSaveable(routine.id) {
+        mutableIntStateOf(initialDefaults.second)
+    }
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var newExerciseName by rememberSaveable { mutableStateOf("") }
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
@@ -113,14 +160,30 @@ fun RoutineDetailScreen(
     var showAiChat by rememberSaveable { mutableStateOf(false) }
     val chatHistoryState = remember { mutableStateOf(chatHistoryStore.getMessages(routine.id)) }
 
-    var saveCounter by remember { mutableIntStateOf(0) }
+    var saveCounter by rememberSaveable { mutableIntStateOf(0) }
+    var dirty by remember { mutableStateOf(false) }
 
-    fun scheduleSave() { saveCounter++ }
+    fun scheduleSave() {
+        dirty = true
+        saveCounter++
+    }
+
+    fun flush() {
+        if (dirty) {
+            onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
+            dirty = false
+        }
+    }
 
     LaunchedEffect(saveCounter) {
         if (saveCounter == 0) return@LaunchedEffect
         delay(1000L)
         onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
+        dirty = false
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { flush() }
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -232,6 +295,7 @@ fun RoutineDetailScreen(
         AiChatDialog(
             routine = routine.copy(name = routineName, exercises = exercises),
             settings = settingsStore,
+            localEngine = localEngine,
             chatHistory = chatHistoryState.value,
             onSendMessage = { msg ->
                 chatHistoryStore.addMessage(routine.id, ChatMessage("user", msg))
@@ -240,6 +304,13 @@ fun RoutineDetailScreen(
             onApplyEdits = { edited ->
                 exercises = edited.exercises
                 routineName = edited.name
+                val nonOverridden = edited.exercises.filter { !it.overrideDefaults }
+                if (nonOverridden.isNotEmpty()) {
+                    globalExerciseDuration = nonOverridden.groupingBy { it.exerciseDurationSeconds }
+                        .eachCount().maxByOrNull { it.value }!!.key.coerceIn(5, 120)
+                    globalRestDuration = nonOverridden.groupingBy { it.restDurationSeconds }
+                        .eachCount().maxByOrNull { it.value }!!.key.coerceIn(5, 120)
+                }
                 scheduleSave()
             },
             onAiResponded = { text ->
@@ -250,6 +321,7 @@ fun RoutineDetailScreen(
                 chatHistoryStore.clear(routine.id)
                 chatHistoryState.value = emptyList()
             },
+            onOpenSettings = onOpenSettings,
             onDismiss = { showAiChat = false },
         )
     }
@@ -263,9 +335,6 @@ fun RoutineDetailScreen(
                         Icon(imageVector = ArrowBack, contentDescription = stringResource(R.string.back_desc))
                     }
                 },
-                actions = {
-                    SettingsIconButton(onClick = onOpenSettings)
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -275,7 +344,7 @@ fun RoutineDetailScreen(
         bottomBar = {
             Button(
                 onClick = {
-                    onUpdateRoutine(routine.copy(name = routineName, exercises = exercises))
+                    flush()
                     onStart(repeatCount)
                 },
                 modifier = Modifier

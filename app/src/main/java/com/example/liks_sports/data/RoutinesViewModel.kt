@@ -8,9 +8,11 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.liks_sports.R
-import org.json.JSONArray
-import org.json.JSONObject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 class RoutinesViewModel(application: Application) : AndroidViewModel(application) {
     private var savedRoutines by mutableStateOf(listOf<Routine>())
@@ -19,7 +21,67 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
 
     val routines by derivedStateOf {
         localeVersion
-        (builtinRoutines() + savedRoutines).filter { it.id !in dismissedDefaults }
+        val overrides = savedRoutines.associateBy { it.id }
+        val builtins = builtinRoutines().map { overrides[it.id] ?: it }
+        val customs = savedRoutines.filter { !isBuiltin(it.id) }
+        (builtins + customs).filter { it.id !in dismissedDefaults }
+    }
+
+    val hasDismissedDefaults by derivedStateOf {
+        localeVersion
+        dismissedDefaults.isNotEmpty()
+    }
+
+    val localLlmEngine: LocalLlmEngine by lazy { LocalLlmEngine(getApplication()) }
+
+    val localModelManager: LocalModelManager by lazy { LocalModelManager(getApplication()) }
+
+    private val settingsStore by lazy { SettingsStore(getApplication()) }
+
+    var modelPresent by mutableStateOf(localModelManager.isModelPresent())
+        private set
+
+    var downloadState by mutableStateOf<DownloadState>(DownloadState.Idle)
+        private set
+    private var downloadJob: Job? = null
+
+    fun startDownload() {
+        if (downloadState is DownloadState.Downloading) return
+        downloadState = DownloadState.Downloading(0)
+        downloadJob = viewModelScope.launch {
+            try {
+                val path = localModelManager.download { pct ->
+                    downloadState = DownloadState.Downloading(pct)
+                }
+                settingsStore.localModelPath = path
+                settingsStore.localModelId = SettingsStore.DEFAULT_LOCAL_MODEL_ID
+                modelPresent = true
+                localLlmEngine.close()
+                downloadState = DownloadState.Idle
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                downloadState = DownloadState.Error(e.message ?: "error")
+            }
+        }
+    }
+
+    fun cancelDownload() {
+        downloadJob?.cancel()
+        downloadJob = null
+        downloadState = DownloadState.Idle
+    }
+
+    fun deleteModel() {
+        if (downloadState is DownloadState.Downloading) cancelDownload()
+        localModelManager.deleteModel()
+        settingsStore.localModelPath = ""
+        modelPresent = false
+        localLlmEngine.close()
+    }
+
+    fun clearDownloadError() {
+        if (downloadState is DownloadState.Error) downloadState = DownloadState.Idle
     }
 
     init {
@@ -38,33 +100,52 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun renameRoutine(id: String, name: String) {
-        if (isBuiltin(id)) return
-        savedRoutines = savedRoutines.map { if (it.id == id) it.copy(name = name) else it }
+        if (savedRoutines.any { it.id == id }) {
+            savedRoutines = savedRoutines.map { if (it.id == id) it.copy(name = name) else it }
+        } else if (isBuiltin(id)) {
+            val builtin = builtinRoutines().first { it.id == id }
+            savedRoutines = savedRoutines + builtin.copy(name = name)
+        }
         saveState()
     }
 
     fun updateRoutine(id: String, updated: Routine) {
-        if (isBuiltin(id)) return
-        savedRoutines = savedRoutines.map { if (it.id == id) updated else it }
+        savedRoutines = if (savedRoutines.any { it.id == id }) {
+            savedRoutines.map { if (it.id == id) updated else it }
+        } else {
+            savedRoutines + updated
+        }
         saveState()
     }
 
     fun deleteRoutine(id: String) {
+        savedRoutines = savedRoutines.filter { it.id != id }
         if (isBuiltin(id)) {
             dismissedDefaults = dismissedDefaults + id
-            saveState()
-        } else {
-            savedRoutines = savedRoutines.filter { it.id != id }
-            saveState()
         }
+        saveState()
     }
 
     fun undoDeleteRoutine(routine: Routine) {
-        savedRoutines = savedRoutines + routine
         if (isBuiltin(routine.id)) {
             dismissedDefaults = dismissedDefaults - routine.id
         }
+        savedRoutines = if (savedRoutines.any { it.id == routine.id }) {
+            savedRoutines.map { if (it.id == routine.id) routine else it }
+        } else {
+            savedRoutines + routine
+        }
         saveState()
+    }
+
+    fun restoreDefaults() {
+        dismissedDefaults = emptySet()
+        saveState()
+    }
+
+    override fun onCleared() {
+        localLlmEngine.close()
+        super.onCleared()
     }
 
     private fun isBuiltin(id: String) = id == BUILTIN_PARKOUR_ID || id == BUILTIN_FOOTBALL_ID
@@ -235,8 +316,8 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
         val prefs = getApplication<Application>()
             .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
-            .putString(KEY_ROUTINES, toJson(savedRoutines))
-            .putString(KEY_DISMISSED, toJsonSet(dismissedDefaults))
+            .putString(KEY_ROUTINES, RoutinesJson.toJson(savedRoutines))
+            .putString(KEY_DISMISSED, RoutinesJson.toJsonSet(dismissedDefaults))
             .apply()
     }
 
@@ -246,7 +327,7 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
         try {
             val json = prefs.getString(KEY_ROUTINES, null)
             if (json != null) {
-                savedRoutines = fromJson(json)
+                savedRoutines = RoutinesJson.fromJson(json)
             }
         } catch (_: Exception) {
             savedRoutines = emptyList()
@@ -254,82 +335,13 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
         try {
             val dismissedJson = prefs.getString(KEY_DISMISSED, null)
             if (dismissedJson != null) {
-                dismissedDefaults = fromJsonSet(dismissedJson)
+                dismissedDefaults = RoutinesJson.fromJsonSet(dismissedJson)
             }
         } catch (_: Exception) {
             dismissedDefaults = emptySet()
         }
     }
 
-    private fun toJson(routines: List<Routine>): String {
-        val arr = JSONArray()
-        for (r in routines) {
-            val exercises = JSONArray()
-            for (e in r.exercises) {
-                exercises.put(
-                    JSONObject().apply {
-                        put("id", e.id)
-                        put("name", e.name)
-                        put("reps", e.reps)
-                        put("exerciseDurationSeconds", e.exerciseDurationSeconds)
-                        put("restDurationSeconds", e.restDurationSeconds)
-                        put("overrideDefaults", e.overrideDefaults)
-                    }
-                )
-            }
-            arr.put(
-                JSONObject().apply {
-                    put("id", r.id)
-                    put("name", r.name)
-                    put("exercises", exercises)
-                }
-            )
-        }
-        return JSONObject().apply {
-            put("format_version", FORMAT_VERSION)
-            put("routines", arr)
-        }.toString()
-    }
-
-    private fun fromJson(json: String): List<Routine> {
-        val arr = try {
-            val root = JSONObject(json)
-            root.getJSONArray("routines")
-        } catch (_: Exception) {
-            JSONArray(json)
-        }
-        return (0 until arr.length()).map { i ->
-            val obj = arr.getJSONObject(i)
-            val exercisesArr = obj.getJSONArray("exercises")
-            val exercises = (0 until exercisesArr.length()).map { j ->
-                val e = exercisesArr.getJSONObject(j)
-                Exercise(
-                    id = e.getString("id"),
-                    name = e.getString("name"),
-                    reps = e.getInt("reps"),
-                    exerciseDurationSeconds = e.getInt("exerciseDurationSeconds"),
-                    restDurationSeconds = e.getInt("restDurationSeconds"),
-                    overrideDefaults = e.getBoolean("overrideDefaults"),
-                )
-            }
-            Routine(
-                id = obj.getString("id"),
-                name = obj.getString("name"),
-                exercises = exercises,
-            )
-        }
-    }
-
-    private fun toJsonSet(set: Set<String>): String {
-        val arr = JSONArray()
-        for (s in set) arr.put(s)
-        return arr.toString()
-    }
-
-    private fun fromJsonSet(json: String): Set<String> {
-        val arr = JSONArray(json)
-        return (0 until arr.length()).map { arr.getString(it) }.toSet()
-    }
 
     companion object {
         private const val PREFS_NAME = "liks_sports_prefs"
@@ -337,6 +349,5 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
         private const val KEY_DISMISSED = "dismissed_defaults"
         private const val BUILTIN_PARKOUR_ID = "builtin_parkour"
         private const val BUILTIN_FOOTBALL_ID = "builtin_football"
-        private const val FORMAT_VERSION = 1
     }
 }

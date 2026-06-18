@@ -1,8 +1,6 @@
 package com.example.liks_sports.ui.screens
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.util.Log
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,11 +39,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.liks_sports.R
+import com.example.liks_sports.data.AiEditParser
 import com.example.liks_sports.data.ChatMessage
+import com.example.liks_sports.data.LocalLlmEngine
+import com.example.liks_sports.data.NetworkUtil
 import com.example.liks_sports.data.Routine
 import com.example.liks_sports.data.SettingsStore
+import com.example.liks_sports.ui.icons.Close
 import com.example.liks_sports.ui.icons.Send
+import com.example.liks_sports.ui.icons.Settings
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -59,11 +64,13 @@ import java.net.URL
 fun AiChatDialog(
     routine: Routine,
     settings: SettingsStore,
+    localEngine: LocalLlmEngine,
     chatHistory: List<ChatMessage>,
     onSendMessage: (String) -> Unit,
     onApplyEdits: (Routine) -> Unit,
     onAiResponded: (String) -> Unit,
     onClearSession: () -> Unit,
+    onOpenSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     var input by remember { mutableStateOf("") }
@@ -71,14 +78,18 @@ fun AiChatDialog(
     var streamingContent by remember { mutableStateOf<String?>(null) }
     var streamingReasoning by remember { mutableStateOf("") }
     var errorText by remember { mutableStateOf<String?>(null) }
+    var streamingJob by remember { mutableStateOf<Job?>(null) }
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val context = LocalContext.current
     val notConfiguredMsg = stringResource(R.string.ai_not_configured)
+    val notDownloadedMsg = stringResource(R.string.ai_not_downloaded)
+    val localLoadingMsg = stringResource(R.string.ai_local_loading)
     val noNetworkMsg = stringResource(R.string.ai_network_error, "No internet connection")
 
     LaunchedEffect(messages.size, streamingContent) {
-        listState.animateScrollToItem(Int.MAX_VALUE)
+        val target = if (streamingContent != null) messages.size else (messages.size - 1).coerceAtLeast(0)
+        listState.animateScrollToItem(target)
     }
 
     Dialog(
@@ -94,11 +105,56 @@ fun AiChatDialog(
                 .imePadding(),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = stringResource(R.string.ai_assistant_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = stringResource(R.string.ai_assistant_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (streamingJob != null) {
+                        TextButton(onClick = { streamingJob?.cancel() }) {
+                            Text(
+                                text = stringResource(R.string.cancel),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    } else {
+                        TextButton(
+                            onClick = {
+                                messages = emptyList()
+                                streamingContent = null
+                                streamingReasoning = ""
+                                errorText = null
+                                onClearSession()
+                            },
+                            enabled = messages.isNotEmpty(),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.clear_action),
+                                color = if (messages.isNotEmpty())
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                            )
+                        }
+                    }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(
+                            imageVector = Settings,
+                            contentDescription = stringResource(R.string.settings_desc),
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Close,
+                            contentDescription = stringResource(R.string.close_desc),
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.padding(4.dp))
                 HorizontalDivider()
                 Spacer(modifier = Modifier.padding(4.dp))
@@ -195,11 +251,11 @@ fun AiChatDialog(
                         onClick = {
                             val msg = input.trim()
                             if (msg.isEmpty() || streamingContent != null) return@IconButton
-                            if (!settings.isConfigured) {
-                                errorText = notConfiguredMsg
+                            if (!settings.isAiReady()) {
+                                errorText = if (settings.useCloudModel) notConfiguredMsg else notDownloadedMsg
                                 return@IconButton
                             }
-                            if (!isNetworkAvailable(context)) {
+                            if (settings.useCloudModel && !NetworkUtil.isAvailable(context)) {
                                 errorText = noNetworkMsg
                                 return@IconButton
                             }
@@ -211,39 +267,44 @@ fun AiChatDialog(
                             streamingContent = ""
                             val fullMessages = messages
 
-                            scope.launch {
+                            streamingJob = scope.launch {
                                 try {
-                                    val result = streamFromAi(settings, routine, fullMessages,
-                                        onToken = { token ->
-                                            streamingContent = (streamingContent ?: "") + token
-                                        },
-                                        onReasoningToken = { token ->
-                                            streamingReasoning = streamingReasoning + token
-                                        },
-                                    )
-                                    if (!result.complete) {
-                                        Log.w("AiChatDialog", "Stream may be incomplete")
+                                    val fullResponse = if (settings.useCloudModel) {
+                                        streamFromCloud(settings, routine, fullMessages,
+                                            onToken = { token ->
+                                                streamingContent = (streamingContent ?: "") + token
+                                            },
+                                            onReasoningToken = { token ->
+                                                streamingReasoning = streamingReasoning + token
+                                            },
+                                        )
+                                    } else {
+                                        streamFromLocal(settings, localEngine, routine, fullMessages.dropLast(1),
+                                            userText = msg,
+                                            onToken = { token ->
+                                                streamingContent = (streamingContent ?: "") + token
+                                            },
+                                            onLoading = { streamingReasoning = localLoadingMsg },
+                                        )
                                     }
-                                    val fullResponse = streamingContent ?: ""
-                                    val cleanText = extractMessageText(fullResponse)
+                                    val cleanText = AiEditParser.extractMessageText(fullResponse)
                                     val displayText = cleanText ?: fullResponse
-                                    streamingContent = displayText
-                                    val edited = applyAiEdits(routine, fullResponse)
+                                    val edited = AiEditParser.applyAiEdits(routine, fullResponse)
                                     if (edited != null) {
                                         onApplyEdits(edited)
                                     }
                                     onAiResponded(displayText)
                                     messages = messages + ChatMessage("assistant", displayText)
-                                    streamingContent = null
-                                    streamingReasoning = ""
+                                } catch (e: CancellationException) {
+                                    throw e
                                 } catch (e: AiStreamException) {
                                     errorText = e.message ?: "Unknown error"
-                                    streamingContent = null
-                                    streamingReasoning = ""
                                 } catch (e: Exception) {
                                     errorText = e.message ?: "Unknown error"
+                                } finally {
                                     streamingContent = null
                                     streamingReasoning = ""
+                                    streamingJob = null
                                 }
                             }
                         },
@@ -255,33 +316,6 @@ fun AiChatDialog(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.padding(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TextButton(
-                        onClick = {
-                            messages = emptyList()
-                            streamingContent = null
-                            streamingReasoning = ""
-                            errorText = null
-                            onClearSession()
-                        },
-                        enabled = messages.isNotEmpty() && streamingContent == null,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.ai_clear),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
-                    TextButton(
-                        onClick = onDismiss,
-                    ) {
-                        Text(stringResource(R.string.close))
-                    }
-                }
             }
         }
     }
@@ -290,7 +324,6 @@ fun AiChatDialog(
 @Composable
 private fun ChatBubble(
     message: ChatMessage,
-    isStreaming: Boolean = false,
 ) {
     val isUser = message.role == "user"
     Surface(
@@ -310,13 +343,6 @@ private fun ChatBubble(
                     color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer
                         else MaterialTheme.colorScheme.onSecondaryContainer,
                 )
-                if (isStreaming) {
-                    Spacer(modifier = Modifier.width(6.dp))
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(12.dp),
-                        strokeWidth = 1.5.dp,
-                    )
-                }
             }
             Text(
                 text = message.content,
@@ -328,19 +354,33 @@ private fun ChatBubble(
     }
 }
 
-private data class StreamResult(
-    val complete: Boolean,
-)
-
 private class AiStreamException(message: String) : Exception(message)
 
-private suspend fun streamFromAi(
+private suspend fun streamFromLocal(
+    settings: SettingsStore,
+    engine: LocalLlmEngine,
+    routine: Routine,
+    messages: List<ChatMessage>,
+    userText: String,
+    onToken: (String) -> Unit,
+    onLoading: () -> Unit,
+): String {
+    if (!engine.isReady()) {
+        onLoading()
+        val ok = engine.initialize(settings)
+        if (!ok) throw AiStreamException("Failed to load on-device model")
+    }
+    val systemPrompt = AiEditParser.buildSystemPrompt(routine)
+    return engine.stream(settings, systemPrompt, messages, userText, onToken)
+}
+
+private suspend fun streamFromCloud(
     settings: SettingsStore,
     routine: Routine,
     messages: List<ChatMessage>,
     onToken: (String) -> Unit,
     onReasoningToken: (String) -> Unit,
-): StreamResult = withContext(Dispatchers.IO) {
+): String = withContext(Dispatchers.IO) {
     val baseUrl = settings.apiUrl.trimEnd('/')
     val url = URL("$baseUrl/chat/completions")
     val connection = url.openConnection() as HttpURLConnection
@@ -353,7 +393,7 @@ private suspend fun streamFromAi(
         connection.connectTimeout = 30_000
         connection.readTimeout = 120_000
 
-        val systemPrompt = buildSystemPrompt(routine)
+        val systemPrompt = AiEditParser.buildSystemPrompt(routine)
         val requestMessages = JSONArray()
         requestMessages.put(JSONObject().apply {
             put("role", "system")
@@ -392,14 +432,13 @@ private suspend fun streamFromAi(
         }
 
         val reader = BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8))
-        var sawFinish = false
+        val sb = StringBuilder()
         var line: String?
         while (reader.readLine().also { line = it } != null) {
             val l = line ?: continue
             if (l.startsWith("data: ")) {
                 val data = l.removePrefix("data: ").trim()
                 if (data == "[DONE]") {
-                    sawFinish = true
                     break
                 }
                 try {
@@ -407,17 +446,12 @@ private suspend fun streamFromAi(
                     val choices = chunk.optJSONArray("choices")
                     if (choices != null && choices.length() > 0) {
                         val choice = choices.getJSONObject(0)
-
-                        val finishReason = choice.optString("finish_reason", "")
-                        if (finishReason.isNotEmpty()) {
-                            sawFinish = true
-                        }
-
                         val delta = choice.optJSONObject("delta")
 
                         val raw = delta?.opt("content")
                         val content = if (raw is String) raw else ""
                         if (content.isNotEmpty()) {
+                            sb.append(content)
                             withContext(Dispatchers.Main) { onToken(content) }
                         }
 
@@ -432,130 +466,8 @@ private suspend fun streamFromAi(
                 }
             }
         }
-        StreamResult(complete = sawFinish)
+        sb.toString()
     } finally {
         connection.disconnect()
     }
-}
-
-private fun isNetworkAvailable(context: Context): Boolean {
-    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
-    val network = cm.activeNetwork ?: return false
-    val caps = cm.getNetworkCapabilities(network) ?: return false
-    return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-}
-
-private fun extractMessageText(fullResponse: String): String? {
-    val jsonMatch = extractJsonBlock(fullResponse) ?: return null
-    return try {
-        val response = JSONObject(jsonMatch)
-        val actions = response.optJSONArray("actions") ?: return null
-        for (i in 0 until actions.length()) {
-            val action = actions.getJSONObject(i)
-            if (action.getString("type") == "message") {
-                return action.getString("text")
-            }
-        }
-        null
-    } catch (_: Exception) {
-        null
-    }
-}
-
-private fun extractJsonBlock(text: String): String? {
-    val jsonMatch = Regex("```json\\s*([\\s\\S]*?)```").find(text)
-    return jsonMatch?.groupValues?.get(1)
-}
-
-private fun buildSystemPrompt(routine: Routine): String {
-    val exercisesJson = JSONArray()
-    for (ex in routine.exercises) {
-        exercisesJson.put(JSONObject().apply {
-            put("id", ex.id)
-            put("name", ex.name)
-            put("reps", ex.reps)
-            put("exerciseDurationSeconds", ex.exerciseDurationSeconds)
-            put("restDurationSeconds", ex.restDurationSeconds)
-            put("overrideDefaults", ex.overrideDefaults)
-        })
-    }
-    return """You are an AI assistant that helps edit workout routines. The user will ask you to modify a routine.
-
-Current routine name: "${routine.name}"
-Current exercises:
-$exercisesJson
-
-When the user asks for changes, respond with a JSON block wrapped in ```json fences containing an "actions" array. Available action types:
-
-- {"type": "add_exercise", "name": "Exercise Name", "exerciseDurationSeconds": 30, "restDurationSeconds": 10, "reps": 1}
-- {"type": "remove_exercise", "exerciseId": "the-id"}
-- {"type": "rename_exercise", "exerciseId": "the-id", "name": "New Name"}
-- {"type": "modify_exercise", "exerciseId": "the-id", "changes": {"exerciseDurationSeconds": 45, "restDurationSeconds": 15, "reps": 3, "overrideDefaults": true}}
-- {"type": "rename_routine", "name": "New Routine Name"}
-- {"type": "message", "text": "Some chat message explaining what you did"}
-
-Include a "message" action explaining what you did. Example response:
-
-```json
-{
-  "actions": [
-    {"type": "add_exercise", "name": "Plank", "exerciseDurationSeconds": 60, "restDurationSeconds": 25, "reps": 1},
-    {"type": "message", "text": "I added a 60-second Plank exercise."}
-  ]
-}
-```
-
-Only respond with the JSON actions block — do not include any other text outside the JSON block."""
-}
-
-private fun applyAiEdits(routine: Routine, aiResponse: String): Routine? {
-    val jsonStr = extractJsonBlock(aiResponse) ?: return null
-    val response = JSONObject(jsonStr)
-    val actions = response.optJSONArray("actions") ?: return null
-
-    var updated = routine
-    for (i in 0 until actions.length()) {
-        val action = actions.getJSONObject(i)
-        when (action.getString("type")) {
-            "add_exercise" -> {
-                val ex = com.example.liks_sports.data.Exercise(
-                    name = action.getString("name"),
-                    exerciseDurationSeconds = action.optInt("exerciseDurationSeconds", 30),
-                    restDurationSeconds = action.optInt("restDurationSeconds", 10),
-                    reps = action.optInt("reps", 1),
-                )
-                updated = updated.copy(exercises = updated.exercises + ex)
-            }
-            "remove_exercise" -> {
-                val id = action.getString("exerciseId")
-                updated = updated.copy(exercises = updated.exercises.filter { it.id != id })
-            }
-            "rename_exercise" -> {
-                val id = action.getString("exerciseId")
-                val name = action.getString("name")
-                updated = updated.copy(exercises = updated.exercises.map {
-                    if (it.id == id) it.copy(name = name) else it
-                })
-            }
-            "modify_exercise" -> {
-                val id = action.getString("exerciseId")
-                val changes = action.getJSONObject("changes")
-                updated = updated.copy(exercises = updated.exercises.map { ex ->
-                    if (ex.id == id) {
-                        ex.copy(
-                            name = changes.optString("name", ex.name),
-                            exerciseDurationSeconds = changes.optInt("exerciseDurationSeconds", ex.exerciseDurationSeconds),
-                            restDurationSeconds = changes.optInt("restDurationSeconds", ex.restDurationSeconds),
-                            reps = changes.optInt("reps", ex.reps),
-                            overrideDefaults = changes.optBoolean("overrideDefaults", ex.overrideDefaults),
-                        )
-                    } else ex
-                })
-            }
-            "rename_routine" -> {
-                updated = updated.copy(name = action.getString("name"))
-            }
-        }
-    }
-    return if (updated != routine) updated else null
 }
