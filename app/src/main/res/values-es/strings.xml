@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">liks-sports</string>
+    <string name="app_name">wave</string>
 
     <!-- RoutineListScreen -->
     <string name="routine_list_title">Rutinas de Ejercicio</string>
