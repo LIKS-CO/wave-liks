@@ -46,7 +46,9 @@ object WorkoutStatsCalculator {
 
         val firstOfWeek = today.minusDays((today.dayOfWeek.value - 1).toLong())
         val firstOfWeekEpoch = firstOfWeek.toEpochDay()
-        val thisWeekCount = completedByDay.entries.count { it.key >= firstOfWeekEpoch && it.key <= todayEpoch }
+        val thisWeekCount = completedByDay.entries
+            .filter { it.key in firstOfWeekEpoch..todayEpoch }
+            .sumOf { it.value }
 
         val last7Days = (6 downTo 0).map { back ->
             val day = today.minusDays(back.toLong()).toEpochDay()

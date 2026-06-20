@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.liks_sports.BuildConfig
 import com.example.liks_sports.R
 import com.example.liks_sports.data.AiEditParser
 import com.example.liks_sports.data.ChatMessage
@@ -69,12 +70,13 @@ fun AiChatDialog(
     onSendMessage: (String) -> Unit,
     onApplyEdits: (Routine) -> Unit,
     onAiResponded: (String) -> Unit,
+    onSendFailed: () -> Unit,
     onClearSession: () -> Unit,
     onOpenSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     var input by remember { mutableStateOf("") }
-    var messages by remember { mutableStateOf(chatHistory) }
+    var messages by remember(chatHistory) { mutableStateOf(chatHistory) }
     var streamingContent by remember { mutableStateOf<String?>(null) }
     var streamingReasoning by remember { mutableStateOf("") }
     var errorText by remember { mutableStateOf<String?>(null) }
@@ -87,9 +89,15 @@ fun AiChatDialog(
     val localLoadingMsg = stringResource(R.string.ai_local_loading)
     val noNetworkMsg = stringResource(R.string.ai_network_error, "No internet connection")
 
-    LaunchedEffect(messages.size, streamingContent) {
-        val target = if (streamingContent != null) messages.size else (messages.size - 1).coerceAtLeast(0)
-        listState.animateScrollToItem(target)
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
+        }
+    }
+    LaunchedEffect(streamingContent) {
+        if (streamingContent != null && messages.isNotEmpty()) {
+            listState.scrollToItem(messages.size)
+        }
     }
 
     Dialog(
@@ -297,10 +305,9 @@ fun AiChatDialog(
                                     messages = messages + ChatMessage("assistant", displayText)
                                 } catch (e: CancellationException) {
                                     throw e
-                                } catch (e: AiStreamException) {
-                                    errorText = e.message ?: "Unknown error"
                                 } catch (e: Exception) {
                                     errorText = e.message ?: "Unknown error"
+                                    onSendFailed()
                                 } finally {
                                     streamingContent = null
                                     streamingReasoning = ""
@@ -431,42 +438,43 @@ private suspend fun streamFromCloud(
             throw AiStreamException(msg)
         }
 
-        val reader = BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8))
-        val sb = StringBuilder()
-        var line: String?
-        while (reader.readLine().also { line = it } != null) {
-            val l = line ?: continue
-            if (l.startsWith("data: ")) {
-                val data = l.removePrefix("data: ").trim()
-                if (data == "[DONE]") {
-                    break
-                }
-                try {
-                    val chunk = JSONObject(data)
-                    val choices = chunk.optJSONArray("choices")
-                    if (choices != null && choices.length() > 0) {
-                        val choice = choices.getJSONObject(0)
-                        val delta = choice.optJSONObject("delta")
-
-                        val raw = delta?.opt("content")
-                        val content = if (raw is String) raw else ""
-                        if (content.isNotEmpty()) {
-                            sb.append(content)
-                            withContext(Dispatchers.Main) { onToken(content) }
-                        }
-
-                        val rawReasoning = delta?.opt("reasoning_content")
-                        val reasoning = if (rawReasoning is String) rawReasoning else ""
-                        if (reasoning.isNotEmpty()) {
-                            withContext(Dispatchers.Main) { onReasoningToken(reasoning) }
-                        }
+        BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
+            val sb = StringBuilder()
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                val l = line ?: continue
+                if (l.startsWith("data: ")) {
+                    val data = l.removePrefix("data: ").trim()
+                    if (data == "[DONE]") {
+                        break
                     }
-                } catch (e: Exception) {
-                    Log.w("AiChatDialog", "SSE parse error", e)
+                    try {
+                        val chunk = JSONObject(data)
+                        val choices = chunk.optJSONArray("choices")
+                        if (choices != null && choices.length() > 0) {
+                            val choice = choices.getJSONObject(0)
+                            val delta = choice.optJSONObject("delta")
+
+                            val raw = delta?.opt("content")
+                            val content = if (raw is String) raw else ""
+                            if (content.isNotEmpty()) {
+                                sb.append(content)
+                                withContext(Dispatchers.Main) { onToken(content) }
+                            }
+
+                            val rawReasoning = delta?.opt("reasoning_content")
+                            val reasoning = if (rawReasoning is String) rawReasoning else ""
+                            if (reasoning.isNotEmpty()) {
+                                withContext(Dispatchers.Main) { onReasoningToken(reasoning) }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        if (BuildConfig.DEBUG) Log.w("AiChatDialog", "SSE parse error", e)
+                    }
                 }
             }
+            sb.toString()
         }
-        sb.toString()
     } finally {
         connection.disconnect()
     }

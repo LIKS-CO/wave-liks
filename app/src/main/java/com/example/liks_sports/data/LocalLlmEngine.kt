@@ -2,6 +2,7 @@ package com.example.liks_sports.data
 
 import android.content.Context
 import android.util.Log
+import com.example.liks_sports.BuildConfig
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
@@ -11,6 +12,8 @@ import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Message
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
@@ -26,6 +29,7 @@ class LocalLlmEngine(private val context: Context) {
     @Volatile private var loadedPath: String? = null
     @Volatile private var loadedBackend: String? = null
     @Volatile private var initializing: Boolean = false
+    private val mutex = Mutex()
 
     /** True once [initialize] has completed successfully for the current config. */
     fun isReady(): Boolean = engine != null && loadedPath != null
@@ -39,55 +43,57 @@ class LocalLlmEngine(private val context: Context) {
      * or if already ready. Must be called off the UI thread.
      */
     suspend fun initialize(settings: SettingsStore): Boolean = withContext(Dispatchers.IO) {
-        val path = settings.localModelPath
-        val backend = settings.localBackend
-        if (path.isBlank() || !java.io.File(path).exists()) {
-            return@withContext false
-        }
-        if (engine != null && path == loadedPath && backend == loadedBackend) {
-            return@withContext true
-        }
-        closeInternal()
-        initializing = true
-        try {
-            val backendObj = when (backend) {
-                SettingsStore.BACKEND_CPU -> Backend.CPU()
-                else -> Backend.GPU()
+        mutex.withLock {
+            val path = settings.localModelPath
+            val backend = settings.localBackend
+            if (path.isBlank() || !java.io.File(path).exists()) {
+                return@withLock false
             }
-            val config = EngineConfig(
-                modelPath = path,
-                backend = backendObj,
-                cacheDir = context.cacheDir.path,
-            )
-            val eng = Engine(config)
-            eng.initialize()
-            engine = eng
-            loadedPath = path
-            loadedBackend = backend
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "GPU init failed, falling back to CPU", e)
+            if (engine != null && path == loadedPath && backend == loadedBackend) {
+                return@withLock true
+            }
+            closeInternal()
+            initializing = true
             try {
+                val backendObj = when (backend) {
+                    SettingsStore.BACKEND_CPU -> Backend.CPU()
+                    else -> Backend.GPU()
+                }
                 val config = EngineConfig(
                     modelPath = path,
-                    backend = Backend.CPU(),
+                    backend = backendObj,
                     cacheDir = context.cacheDir.path,
                 )
                 val eng = Engine(config)
                 eng.initialize()
                 engine = eng
                 loadedPath = path
-                loadedBackend = SettingsStore.BACKEND_CPU
+                loadedBackend = backend
                 true
-            } catch (e2: Exception) {
-                Log.e(TAG, "CPU init also failed", e2)
-                engine = null
-                loadedPath = null
-                loadedBackend = null
-                false
+            } catch (e: Exception) {
+                if (BuildConfig.DEBUG) Log.e(TAG, "GPU init failed, falling back to CPU", e)
+                try {
+                    val config = EngineConfig(
+                        modelPath = path,
+                        backend = Backend.CPU(),
+                        cacheDir = context.cacheDir.path,
+                    )
+                    val eng = Engine(config)
+                    eng.initialize()
+                    engine = eng
+                    loadedPath = path
+                    loadedBackend = SettingsStore.BACKEND_CPU
+                    true
+                } catch (e2: Exception) {
+                    if (BuildConfig.DEBUG) Log.e(TAG, "CPU init also failed", e2)
+                    engine = null
+                    loadedPath = null
+                    loadedBackend = null
+                    false
+                }
+            } finally {
+                initializing = false
             }
-        } finally {
-            initializing = false
         }
     }
 

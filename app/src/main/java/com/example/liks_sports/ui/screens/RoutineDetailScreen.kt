@@ -62,6 +62,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.liks_sports.data.Exercise
 import com.example.liks_sports.data.Routine
+import com.example.liks_sports.data.RoutinesJson
+import com.example.liks_sports.data.formatClockDuration
 import com.example.liks_sports.ui.icons.Add
 import com.example.liks_sports.ui.icons.ArrowBack
 import com.example.liks_sports.ui.icons.ArrowDropDown
@@ -77,39 +79,13 @@ import com.example.liks_sports.data.ChatHistoryStore
 import com.example.liks_sports.data.ChatMessage
 import com.example.liks_sports.data.SettingsStore
 import kotlinx.coroutines.delay
-import org.json.JSONArray
-import org.json.JSONObject
 import kotlin.math.roundToInt
 
 private val ExercisesSaver = Saver<List<Exercise>, String>(
-    save = { list ->
-        val arr = JSONArray()
-        for (e in list) {
-            arr.put(JSONObject().apply {
-                put("id", e.id)
-                put("name", e.name)
-                put("reps", e.reps)
-                put("exerciseDurationSeconds", e.exerciseDurationSeconds)
-                put("restDurationSeconds", e.restDurationSeconds)
-                put("overrideDefaults", e.overrideDefaults)
-            })
-        }
-        arr.toString()
-    },
+    save = { RoutinesJson.exercisesToJson(it) },
     restore = { str ->
         try {
-            val arr = JSONArray(str)
-            (0 until arr.length()).map { i ->
-                val e = arr.getJSONObject(i)
-                Exercise(
-                    id = e.getString("id"),
-                    name = e.getString("name"),
-                    reps = e.getInt("reps"),
-                    exerciseDurationSeconds = e.getInt("exerciseDurationSeconds"),
-                    restDurationSeconds = e.getInt("restDurationSeconds"),
-                    overrideDefaults = e.getBoolean("overrideDefaults"),
-                )
-            }
+            RoutinesJson.exercisesFromJson(str)
         } catch (_: Exception) {
             null
         }
@@ -317,6 +293,10 @@ fun RoutineDetailScreen(
                 chatHistoryStore.addMessage(routine.id, ChatMessage("assistant", text))
                 chatHistoryState.value = chatHistoryStore.getMessages(routine.id)
             },
+            onSendFailed = {
+                chatHistoryStore.removeLastUserMessage(routine.id)
+                chatHistoryState.value = chatHistoryStore.getMessages(routine.id)
+            },
             onClearSession = {
                 chatHistoryStore.clear(routine.id)
                 chatHistoryState.value = emptyList()
@@ -386,7 +366,7 @@ fun RoutineDetailScreen(
                         ex.reps * (ex.exerciseDurationSeconds + ex.restDurationSeconds)
                     }
                     Text(
-                        text = stringResource(R.string.total_time, "%d:%02d".format(totalSecs / 60, totalSecs % 60)),
+                        text = stringResource(R.string.total_time, formatClockDuration(totalSecs)),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

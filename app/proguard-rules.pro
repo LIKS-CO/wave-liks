@@ -1,21 +1,17 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# LiteRT-LM on-device LLM — native/JNI bridge classes used via com.google.ai.edge.litertlm.
+# The library loads native code and may reflect on its own classes; keep them all.
+-keep class com.google.ai.edge.litertlm.** { *; }
+-keepclassmembers class com.google.ai.edge.litertlm.** { *; }
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep runtime annotations, generic signatures, and inner-class metadata
+# so reflection-based libraries (Compose, security-crypto, LiteRT-LM) keep working.
+-keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Preserve line numbers for crash reporting.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# androidx.security-crypto depends on Tink, which references JSR-305 concurrency/nullable
+# annotations that are not on the Android runtime classpath.
+-dontwarn javax.annotation.Nullable
+-dontwarn javax.annotation.concurrent.GuardedBy

@@ -1,6 +1,7 @@
 package com.example.liks_sports.data
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
@@ -13,17 +14,21 @@ class SettingsStore(context: Context) {
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    private val securePrefs by lazy {
-        val masterKey = MasterKey.Builder(appContext)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        EncryptedSharedPreferences.create(
-            appContext,
-            PREFS_NAME_SECURE,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-        )
+    private val securePrefs: SharedPreferences by lazy {
+        runCatching {
+            val masterKey = MasterKey.Builder(appContext)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+            EncryptedSharedPreferences.create(
+                appContext,
+                PREFS_NAME_SECURE,
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        }.getOrElse {
+            appContext.getSharedPreferences(PREFS_NAME_SECURE_FALLBACK, Context.MODE_PRIVATE)
+        }
     }
 
     /** When false (default) the app runs AI on-device via LiteRT-LM Gemma 4 E2B. */
@@ -87,10 +92,6 @@ class SettingsStore(context: Context) {
     fun isAiReady(): Boolean =
         if (useCloudModel) isCloudConfigured else isLocalReady()
 
-    /** @deprecated use [isCloudConfigured]; kept for source compatibility. */
-    val isConfigured: Boolean
-        get() = isCloudConfigured
-
     fun saveCloud(apiUrl: String, apiKey: String, modelId: String) {
         this.apiUrl = apiUrl
         this.apiKey = apiKey
@@ -104,6 +105,7 @@ class SettingsStore(context: Context) {
     companion object {
         private const val PREFS_NAME = "liks_sports_prefs"
         private const val PREFS_NAME_SECURE = "liks_sports_secure"
+        private const val PREFS_NAME_SECURE_FALLBACK = "liks_sports_secure_fallback"
         private const val KEY_USE_CLOUD_MODEL = "use_cloud_model"
         private const val KEY_API_URL = "api_url"
         private const val KEY_API_KEY = "api_key"
@@ -121,5 +123,15 @@ class SettingsStore(context: Context) {
         const val DEFAULT_LOCAL_BACKEND = "GPU"
         const val BACKEND_GPU = "GPU"
         const val BACKEND_CPU = "CPU"
+
+        fun isValidApiUrl(url: String): Boolean {
+            val trimmed = url.trim()
+            if (trimmed.startsWith("https://")) return true
+            if (trimmed.startsWith("http://")) {
+                val host = trimmed.removePrefix("http://").substringBefore(':').substringBefore('/')
+                return host == "localhost" || host == "127.0.0.1" || host == "10.0.2.2"
+            }
+            return false
+        }
     }
 }

@@ -135,6 +135,7 @@
     <string name="models_load_failed">No se pudieron cargar los modelos</string>
     <string name="api_url_label">URL base de API</string>
     <string name="api_url_helper">ej. https://api.openai.com/v1</string>
+    <string name="api_url_invalid">La URL debe empezar con https:// (o http:// para localhost)</string>
     <string name="api_key_label">Clave API</string>
     <string name="model_id_label">ID del Modelo</string>
     <string name="test_success">Conexión exitosa</string>

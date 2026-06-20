@@ -11,12 +11,20 @@ class ChatHistoryStore(context: Context) {
 
     private val lock = Any()
 
-    fun getMessages(routineId: String): List<ChatMessage> {
+    fun getMessages(routineId: String): List<ChatMessage> = synchronized(lock) {
         val json = prefs.getString(keyFor(routineId), null) ?: return emptyList()
-        val arr = JSONArray(json)
-        return (0 until arr.length()).map { i ->
-            val obj = arr.getJSONObject(i)
-            ChatMessage(obj.getString("role"), obj.getString("content"))
+        try {
+            val arr = JSONArray(json)
+            (0 until arr.length()).mapNotNull { i ->
+                try {
+                    val obj = arr.getJSONObject(i)
+                    ChatMessage(obj.getString("role"), obj.getString("content"))
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 
@@ -39,6 +47,16 @@ class ChatHistoryStore(context: Context) {
 
     fun clear(routineId: String) {
         prefs.edit().remove(keyFor(routineId)).apply()
+    }
+
+    fun removeLastUserMessage(routineId: String) {
+        synchronized(lock) {
+            val messages = getMessages(routineId).toMutableList()
+            if (messages.isNotEmpty() && messages.last().role == "user") {
+                messages.removeAt(messages.lastIndex)
+                writeMessages(routineId, messages)
+            }
+        }
     }
 
     private fun writeMessages(routineId: String, messages: List<ChatMessage>) {

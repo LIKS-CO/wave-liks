@@ -40,29 +40,41 @@ internal object RoutinesJson {
     fun fromJson(json: String): List<Routine> {
         val arr = try {
             val root = JSONObject(json)
-            root.getJSONArray("routines")
+            when (root.optInt("format_version", 0)) {
+                FORMAT_VERSION -> root.getJSONArray("routines")
+                else -> root.optJSONArray("routines") ?: JSONArray(json)
+            }
         } catch (_: Exception) {
             JSONArray(json)
         }
-        return (0 until arr.length()).map { i ->
-            val obj = arr.getJSONObject(i)
-            val exercisesArr = obj.getJSONArray("exercises")
-            val exercises = (0 until exercisesArr.length()).map { j ->
-                val e = exercisesArr.getJSONObject(j)
-                Exercise(
-                    id = e.getString("id"),
-                    name = e.getString("name"),
-                    reps = e.getInt("reps"),
-                    exerciseDurationSeconds = e.getInt("exerciseDurationSeconds"),
-                    restDurationSeconds = e.getInt("restDurationSeconds"),
-                    overrideDefaults = e.getBoolean("overrideDefaults"),
+        return (0 until arr.length()).mapNotNull { i ->
+            try {
+                val obj = arr.getJSONObject(i)
+                val exercisesArr = obj.getJSONArray("exercises")
+                val exercises = (0 until exercisesArr.length()).mapNotNull { j ->
+                    try {
+                        val e = exercisesArr.getJSONObject(j)
+                        Exercise(
+                            id = e.getString("id"),
+                            name = e.getString("name"),
+                            reps = e.optInt("reps", 1),
+                            exerciseDurationSeconds = e.optInt("exerciseDurationSeconds", 30),
+                            restDurationSeconds = e.optInt("restDurationSeconds", 10),
+                            overrideDefaults = e.optBoolean("overrideDefaults", false),
+                        )
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+                if (exercises.isEmpty() && exercisesArr.length() > 0) return@mapNotNull null
+                Routine(
+                    id = obj.getString("id"),
+                    name = obj.getString("name"),
+                    exercises = exercises,
                 )
+            } catch (_: Exception) {
+                null
             }
-            Routine(
-                id = obj.getString("id"),
-                name = obj.getString("name"),
-                exercises = exercises,
-            )
         }
     }
 
@@ -75,5 +87,41 @@ internal object RoutinesJson {
     fun fromJsonSet(json: String): Set<String> {
         val arr = JSONArray(json)
         return (0 until arr.length()).map { arr.getString(it) }.toSet()
+    }
+
+    fun exercisesToJson(exercises: List<Exercise>): String {
+        val arr = JSONArray()
+        for (e in exercises) {
+            arr.put(
+                JSONObject().apply {
+                    put("id", e.id)
+                    put("name", e.name)
+                    put("reps", e.reps)
+                    put("exerciseDurationSeconds", e.exerciseDurationSeconds)
+                    put("restDurationSeconds", e.restDurationSeconds)
+                    put("overrideDefaults", e.overrideDefaults)
+                }
+            )
+        }
+        return arr.toString()
+    }
+
+    fun exercisesFromJson(json: String): List<Exercise> {
+        val arr = JSONArray(json)
+        return (0 until arr.length()).mapNotNull { i ->
+            try {
+                val e = arr.getJSONObject(i)
+                Exercise(
+                    id = e.getString("id"),
+                    name = e.getString("name"),
+                    reps = e.optInt("reps", 1),
+                    exerciseDurationSeconds = e.optInt("exerciseDurationSeconds", 30),
+                    restDurationSeconds = e.optInt("restDurationSeconds", 10),
+                    overrideDefaults = e.optBoolean("overrideDefaults", false),
+                )
+            } catch (_: Exception) {
+                null
+            }
+        }
     }
 }

@@ -46,7 +46,11 @@ class WorkoutHistoryStore(context: Context) {
         synchronized(lock) {
             val sessions = getSessions().toMutableList()
             sessions.add(session)
-            write(sessions)
+            if (sessions.size > MAX_SESSIONS) {
+                write(sessions.takeLast(MAX_SESSIONS))
+            } else {
+                write(sessions)
+            }
         }
     }
 
@@ -73,6 +77,7 @@ class WorkoutHistoryStore(context: Context) {
     companion object {
         private const val PREFS_NAME = "liks_sports_prefs"
         private const val KEY = "workout_history"
+        private const val MAX_SESSIONS = 500
 
         fun todayEpochDay(zone: ZoneId = ZoneId.systemDefault()): Long =
             LocalDate.now(zone).toEpochDay()

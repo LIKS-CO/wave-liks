@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import com.example.liks_sports.data.Routine
 import com.example.liks_sports.data.WorkoutSession
 import com.example.liks_sports.data.WorkoutStats
+import com.example.liks_sports.data.formatClockDuration
 import com.example.liks_sports.ui.icons.Add
 import com.example.liks_sports.ui.icons.Delete
 import com.example.liks_sports.ui.icons.Edit
@@ -183,6 +184,9 @@ fun RoutineListScreen(
     }
 
     if (showDeleteDialog) {
+        val deletedRoutine = routines.find { it.id == deleteId }
+        val deletedMsg = if (deletedRoutine != null)
+            stringResource(R.string.routine_deleted, deletedRoutine.name) else ""
         AlertDialog(
             onDismissRequest = {
                 showDeleteDialog = false
@@ -192,13 +196,11 @@ fun RoutineListScreen(
             title = { Text(stringResource(R.string.delete_routine_title)) },
             text = { Text(stringResource(R.string.delete_routine_confirm, deleteName)) },
             confirmButton = {
-                val deletedRoutine = routines.find { it.id == deleteId }
-                val msg = deletedRoutine?.let { stringResource(R.string.routine_deleted, it.name) } ?: ""
                 TextButton(
                     onClick = {
                         onDeleteRoutine(deleteId)
                         showDeleteDialog = false
-                        pendingDeleteRoutine = deletedRoutine?.let { it to msg }
+                        pendingDeleteRoutine = deletedRoutine?.let { it to deletedMsg }
                         deleteId = ""
                         deleteName = ""
                     }
@@ -256,8 +258,8 @@ fun RoutineListScreen(
                 item { NoRoutinesContent() }
             } else {
                 items(routines, key = { it.id }) { routine ->
-                    val dismissState = rememberSwipeToDismissBoxState(
-                        confirmValueChange = { value ->
+                    val confirmChange = remember(routine.id, routine.name) {
+                        { value: SwipeToDismissBoxValue ->
                             if (value == SwipeToDismissBoxValue.EndToStart) {
                                 deleteId = routine.id
                                 deleteName = routine.name
@@ -267,6 +269,9 @@ fun RoutineListScreen(
                                 false
                             }
                         }
+                    }
+                    val dismissState = rememberSwipeToDismissBoxState(
+                        confirmValueChange = confirmChange
                     )
                     SwipeToDismissBox(
                         state = dismissState,
@@ -414,7 +419,7 @@ private fun RoutineCard(
                     text = stringResource(
                         R.string.exercises_with_time,
                         routine.exercises.size,
-                        stringResource(R.string.total_time, "%d:%02d".format(totalSecs / 60, totalSecs % 60)),
+                        stringResource(R.string.total_time, formatClockDuration(totalSecs)),
                     ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

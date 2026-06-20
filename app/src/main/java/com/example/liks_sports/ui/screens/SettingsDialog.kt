@@ -61,6 +61,7 @@ import com.example.liks_sports.ui.icons.ExpandMore
 import com.example.liks_sports.ui.icons.Memory
 import com.example.liks_sports.ui.icons.Refresh
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -96,9 +97,15 @@ fun SettingsDialog(
     var testing by remember { mutableStateOf(false) }
 
     val modelsLoadFailedMsg = stringResource(R.string.models_load_failed)
+    val invalidUrlMsg = stringResource(R.string.api_url_invalid)
 
     LaunchedEffect(useCloud, apiUrl, apiKey) {
         if (useCloud && apiUrl.isNotBlank() && apiKey.isNotBlank() && models.isEmpty()) {
+            delay(400L)
+            if (!SettingsStore.isValidApiUrl(apiUrl)) {
+                modelsError = invalidUrlMsg
+                return@LaunchedEffect
+            }
             modelsLoading = true
             modelsError = null
             val result = withContext(Dispatchers.IO) { fetchModels(apiUrl.trimEnd('/'), apiKey) }
@@ -172,6 +179,10 @@ fun SettingsDialog(
                             onUseCustomModelChange = { useCustomModel = it },
                             onRefreshModels = {
                                 if (apiUrl.isBlank() || apiKey.isBlank()) return@CloudModelSection
+                                if (!SettingsStore.isValidApiUrl(apiUrl)) {
+                                    modelsError = invalidUrlMsg
+                                    return@CloudModelSection
+                                }
                                 scope.launch {
                                     modelsLoading = true
                                     modelsError = null
@@ -189,6 +200,10 @@ fun SettingsDialog(
                             testing = testing,
                             onTest = {
                                 if (apiUrl.isBlank() || apiKey.isBlank()) return@CloudModelSection
+                                if (!SettingsStore.isValidApiUrl(apiUrl)) {
+                                    testResult = TestResult.Error(invalidUrlMsg)
+                                    return@CloudModelSection
+                                }
                                 testing = true
                                 testResult = null
                                 scope.launch {
@@ -241,6 +256,10 @@ fun SettingsDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
+                            if (useCloud && !SettingsStore.isValidApiUrl(apiUrl)) {
+                                testResult = TestResult.Error(invalidUrlMsg)
+                                return@Button
+                            }
                             store.useCloudModel = useCloud
                             if (useCloud) {
                                 store.saveCloud(apiUrl.trim(), apiKey.trim(), modelId.trim())
@@ -659,14 +678,19 @@ private sealed interface TestResult {
     data class Error(val message: String) : TestResult
 }
 
-private fun fetchModels(baseUrl: String, apiKey: String): Result<List<String>> = runCatching {
+private fun openModelsConnection(baseUrl: String, apiKey: String): HttpURLConnection {
     val url = URL("$baseUrl/models")
     val connection = url.openConnection() as HttpURLConnection
+    connection.requestMethod = "GET"
+    connection.setRequestProperty("Authorization", "Bearer $apiKey")
+    connection.connectTimeout = 10_000
+    connection.readTimeout = 10_000
+    return connection
+}
+
+private fun fetchModels(baseUrl: String, apiKey: String): Result<List<String>> = runCatching {
+    val connection = openModelsConnection(baseUrl, apiKey)
     try {
-        connection.requestMethod = "GET"
-        connection.setRequestProperty("Authorization", "Bearer $apiKey")
-        connection.connectTimeout = 10_000
-        connection.readTimeout = 10_000
         val code = connection.responseCode
         if (code != HttpURLConnection.HTTP_OK) {
             throw RuntimeException("HTTP $code")
@@ -685,13 +709,8 @@ private fun fetchModels(baseUrl: String, apiKey: String): Result<List<String>> =
 
 private fun testConnection(baseUrl: String, apiKey: String): TestResult {
     return try {
-        val url = URL("$baseUrl/models")
-        val connection = url.openConnection() as HttpURLConnection
+        val connection = openModelsConnection(baseUrl, apiKey)
         try {
-            connection.requestMethod = "GET"
-            connection.setRequestProperty("Authorization", "Bearer $apiKey")
-            connection.connectTimeout = 10_000
-            connection.readTimeout = 10_000
             val code = connection.responseCode
             when {
                 code == HttpURLConnection.HTTP_OK -> TestResult.Success

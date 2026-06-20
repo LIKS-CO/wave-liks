@@ -11,8 +11,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.liks_sports.R
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class RoutinesViewModel(application: Application) : AndroidViewModel(application) {
     private var savedRoutines by mutableStateOf(listOf<Routine>())
@@ -321,28 +323,32 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun loadState() {
-        val prefs = getApplication<Application>()
-            .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        try {
-            val json = prefs.getString(KEY_ROUTINES, null)
-            if (json != null) {
-                savedRoutines = RoutinesJson.fromJson(json)
+        viewModelScope.launch {
+            val (saved, dismissed, sessions) = withContext(Dispatchers.IO) {
+                val prefs = getApplication<Application>()
+                    .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val savedRoutines = try {
+                    prefs.getString(KEY_ROUTINES, null)?.let { RoutinesJson.fromJson(it) }
+                        ?: emptyList()
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                val dismissed = try {
+                    prefs.getString(KEY_DISMISSED, null)?.let { RoutinesJson.fromJsonSet(it) }
+                        ?: emptySet()
+                } catch (_: Exception) {
+                    emptySet()
+                }
+                val sessions = try {
+                    workoutHistoryStore.getSessions()
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                Triple(savedRoutines, dismissed, sessions)
             }
-        } catch (_: Exception) {
-            savedRoutines = emptyList()
-        }
-        try {
-            val dismissedJson = prefs.getString(KEY_DISMISSED, null)
-            if (dismissedJson != null) {
-                dismissedDefaults = RoutinesJson.fromJsonSet(dismissedJson)
-            }
-        } catch (_: Exception) {
-            dismissedDefaults = emptySet()
-        }
-        try {
-            workoutSessions = workoutHistoryStore.getSessions()
-        } catch (_: Exception) {
-            workoutSessions = emptyList()
+            savedRoutines = saved
+            dismissedDefaults = dismissed
+            workoutSessions = sessions
         }
     }
 

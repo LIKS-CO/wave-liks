@@ -1,11 +1,13 @@
 package com.example.liks_sports.ui.screens
 
 import android.content.Context
+import android.media.Ringtone
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,6 +50,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.liks_sports.data.Routine
+import com.example.liks_sports.data.formatClockDuration
 import com.example.liks_sports.ui.icons.ArrowBack
 import com.example.liks_sports.ui.icons.CheckCircle
 import com.example.liks_sports.ui.icons.Pause
@@ -55,6 +58,8 @@ import com.example.liks_sports.ui.icons.PlayArrow
 import com.example.liks_sports.ui.icons.SkipNext
 import com.example.liks_sports.ui.icons.Stop
 import kotlinx.coroutines.delay
+
+private class RingtoneHolder { var ringtone: Ringtone? = null }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,6 +83,9 @@ fun ExerciseTimerScreen(
     var isComplete by rememberSaveable { mutableStateOf(false) }
     var isRunning by rememberSaveable { mutableStateOf(false) }
     var elapsedSeconds by rememberSaveable { mutableIntStateOf(0) }
+    var runStartMs by rememberSaveable { mutableStateOf(0L) }
+    var pausedAccumMs by rememberSaveable { mutableStateOf(0L) }
+    var pauseStartMs by rememberSaveable { mutableStateOf(0L) }
 
     val currentExercise = remember(currentIndex) {
         routine.exercises.getOrNull(currentIndex)
@@ -90,7 +98,7 @@ fun ExerciseTimerScreen(
         } else 0
     }
 
-    var currentRingtone by remember { mutableStateOf<android.media.Ringtone?>(null) }
+    val ringtoneHolder = remember { RingtoneHolder() }
 
     fun advancePhase() {
         val exercise = routine.exercises.getOrNull(currentIndex) ?: return
@@ -118,22 +126,43 @@ fun ExerciseTimerScreen(
                 }
             }
         } else {
-            isResting = true
-            remainingSeconds = currentExercise?.restDurationSeconds ?: 10
+            val isLastRep = currentRep >= exercise.reps
+            val isLastExercise = currentIndex >= routine.exercises.size - 1
+            val isLastRound = currentRound >= repeatCount
+            if (isLastRep && isLastExercise && isLastRound) {
+                isComplete = true
+                isRunning = false
+            } else {
+                isResting = true
+                remainingSeconds = exercise.restDurationSeconds
+            }
         }
     }
 
-    LaunchedEffect(isRunning, isPaused, remainingSeconds) {
-        if (!isRunning || isPaused) return@LaunchedEffect
-        if (remainingSeconds <= 0) return@LaunchedEffect
-        delay(1000L)
-        elapsedSeconds += 1
-        if (remainingSeconds > 1) {
-            remainingSeconds -= 1
-        } else {
-            remainingSeconds = 0
-            playAlert(context, currentRingtone) { currentRingtone = it }
+    LaunchedEffect(isRunning, isPaused, currentIndex, currentRep, currentRound, isResting) {
+        if (!isRunning || isPaused || isComplete) return@LaunchedEffect
+        if (routine.exercises.isEmpty()) return@LaunchedEffect
+
+        val phaseDurationS = remainingSeconds
+        if (phaseDurationS <= 0) {
+            playAlert(context, ringtoneHolder)
             advancePhase()
+            return@LaunchedEffect
+        }
+        val phaseEndMs = System.currentTimeMillis() + phaseDurationS * 1000L
+        while (isRunning && !isPaused && !isComplete) {
+            delay(200L)
+            val now = System.currentTimeMillis()
+            val rem = ((phaseEndMs - now) / 1000L).toInt().coerceAtLeast(0)
+            if (rem != remainingSeconds) remainingSeconds = rem
+            val pausedNow = pausedAccumMs + if (pauseStartMs > 0L) now - pauseStartMs else 0L
+            val elapsed = ((now - runStartMs - pausedNow) / 1000L).toInt().coerceAtLeast(0)
+            if (elapsed != elapsedSeconds) elapsedSeconds = elapsed
+            if (rem <= 0) {
+                playAlert(context, ringtoneHolder)
+                advancePhase()
+                return@LaunchedEffect
+            }
         }
     }
 
@@ -143,15 +172,20 @@ fun ExerciseTimerScreen(
         view.keepScreenOn = true
         onDispose {
             view.keepScreenOn = false
-            currentRingtone?.stop()
+            ringtoneHolder.ringtone?.stop()
         }
     }
     if (!autoStarted && !isComplete && routine.exercises.isNotEmpty()) {
         LaunchedEffect(Unit) {
+            runStartMs = System.currentTimeMillis()
+            pausedAccumMs = 0L
+            pauseStartMs = 0L
             isRunning = true
             autoStarted = true
         }
     }
+
+    BackHandler { onFinish(isComplete, elapsedSeconds) }
 
     Scaffold(
         topBar = {
@@ -236,7 +270,7 @@ fun ExerciseTimerScreen(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = formatTime(remainingSeconds),
+                    text = formatClockDuration(remainingSeconds),
                     fontSize = 56.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (isResting) MaterialTheme.colorScheme.tertiary
@@ -245,19 +279,22 @@ fun ExerciseTimerScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
                 val totalRepsPerRound = routine.exercises.sumOf { it.reps }
-                val totalExerciseCount = totalRepsPerRound * repeatCount
+                val totalReps = totalRepsPerRound * repeatCount
                 val repsBefore = routine.exercises.take(currentIndex).sumOf { it.reps }
-                val currentExerciseNumber =
-                    (currentRound - 1) * totalRepsPerRound + repsBefore + currentRep
+                val repsDone = (currentRound - 1) * totalRepsPerRound + repsBefore +
+                    (currentRep - 1) + if (isResting) 1 else 0
+                val progressValue = if (isComplete) 1f
+                    else (repsDone.toFloat() / totalReps.toFloat()).coerceIn(0f, 1f)
+                val currentExerciseNumber = (repsDone + if (isResting) 0 else 1).coerceIn(1, totalReps)
 
                 LinearProgressIndicator(
-                    progress = { currentExerciseNumber.toFloat() / totalExerciseCount.toFloat() },
+                    progress = { progressValue },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 32.dp),
                 )
                 Text(
-                    text = stringResource(R.string.exercise_of, currentExerciseNumber, totalExerciseCount),
+                    text = stringResource(R.string.exercise_of, currentExerciseNumber, totalReps),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),
@@ -280,6 +317,9 @@ fun ExerciseTimerScreen(
                             isResting = false
                             remainingSeconds = routine.exercises.firstOrNull()?.exerciseDurationSeconds ?: 0
                             elapsedSeconds = 0
+                            runStartMs = System.currentTimeMillis()
+                            pausedAccumMs = 0L
+                            pauseStartMs = 0L
                             isRunning = true
                         }
                     ) {
@@ -288,7 +328,18 @@ fun ExerciseTimerScreen(
                     }
 
                     Button(
-                        onClick = { isPaused = !isPaused },
+                        onClick = {
+                            if (!isPaused) {
+                                pauseStartMs = System.currentTimeMillis()
+                                isPaused = true
+                            } else {
+                                if (pauseStartMs > 0L) {
+                                    pausedAccumMs += System.currentTimeMillis() - pauseStartMs
+                                    pauseStartMs = 0L
+                                }
+                                isPaused = false
+                            }
+                        },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (isPaused) MaterialTheme.colorScheme.secondary
                                 else MaterialTheme.colorScheme.primary,
@@ -313,19 +364,13 @@ fun ExerciseTimerScreen(
     }
 }
 
-private fun formatTime(seconds: Int): String {
-    val mins = seconds / 60
-    val secs = seconds % 60
-    return "%d:%02d".format(mins, secs)
-}
-
-private fun playAlert(context: Context, previous: android.media.Ringtone?, setRingtone: (android.media.Ringtone?) -> Unit) {
+private fun playAlert(context: Context, holder: RingtoneHolder) {
     try {
-        previous?.stop()
+        holder.ringtone?.stop()
         val notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         val ringtone = RingtoneManager.getRingtone(context, notification)
         ringtone?.play()
-        setRingtone(ringtone)
+        holder.ringtone = ringtone
     } catch (_: Exception) {}
 
     try {

@@ -58,7 +58,8 @@ fun AppNavHost(navController: NavHostController) {
     var showGeneralSettings by rememberSaveable { mutableStateOf(false) }
     var themePalette by remember { mutableStateOf(settingsStore.themePalette) }
 
-    LaunchedEffect(LocalConfiguration.current) {
+    val currentLocale = LocalConfiguration.current.locales[0]
+    LaunchedEffect(currentLocale) {
         vm.onLocaleChanged()
     }
 
