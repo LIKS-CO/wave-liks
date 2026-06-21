@@ -64,6 +64,7 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.google.ai.edge.litertlm)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
+    implementation("com.github.woheller69:FreeDroidWarn:V1.+")
     testImplementation(libs.junit)
     testImplementation(libs.json)
     androidTestImplementation(platform(libs.androidx.compose.bom))
