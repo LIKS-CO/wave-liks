@@ -98,6 +98,13 @@
     <string name="football_zig_zag_platos">Zig-zag entre platos</string>
     <string name="football_skipping_platos">Skipping (con platos)</string>
     <string name="football_metralletas">Metralletas (arranco a velocidad)</string>
+    <string name="warmup_name">Calentamiento</string>
+    <string name="warmup_ankle_circles">Círculos de tobillo</string>
+    <string name="warmup_hip_circles">Círculos de cadera</string>
+    <string name="warmup_arm_swings">Balanceo de brazos</string>
+    <string name="warmup_squats">Sentadillas (peso corporal)</string>
+    <string name="warmup_leg_swings">Balanceo de piernas</string>
+    <string name="warmup_march">Marchar en el sitio</string>
 
     <!-- Settings -->
     <string name="settings_title">Configuración de IA</string>

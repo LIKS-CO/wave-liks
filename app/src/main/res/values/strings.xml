@@ -98,6 +98,13 @@
     <string name="football_zig_zag_platos">Zig-zag between discs</string>
     <string name="football_skipping_platos">Skipping (with discs)</string>
     <string name="football_metralletas">Sprints (explosive starts)</string>
+    <string name="warmup_name">Warm-up</string>
+    <string name="warmup_ankle_circles">Ankle circles</string>
+    <string name="warmup_hip_circles">Hip circles</string>
+    <string name="warmup_arm_swings">Arm swings</string>
+    <string name="warmup_squats">Bodyweight squats</string>
+    <string name="warmup_leg_swings">Leg swings</string>
+    <string name="warmup_march">March in place</string>
 
     <!-- Settings -->
     <string name="settings_title">AI Settings</string>

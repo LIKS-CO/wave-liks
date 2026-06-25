@@ -173,7 +173,7 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
         super.onCleared()
     }
 
-    private fun isBuiltin(id: String) = id == BUILTIN_PARKOUR_ID || id == BUILTIN_FOOTBALL_ID
+    private fun isBuiltin(id: String) = id == BUILTIN_PARKOUR_ID || id == BUILTIN_FOOTBALL_ID || id == BUILTIN_WARMUP_ID
 
     private fun builtinRoutines(): List<Routine> {
         val res = getApplication<Application>().resources
@@ -310,6 +310,60 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
                     ),
                 ),
             ),
+            Routine(
+                id = BUILTIN_WARMUP_ID,
+                name = res.getString(R.string.warmup_name),
+                exercises = listOf(
+                    Exercise(
+                        id = "warmup_ankle_circles",
+                        name = res.getString(R.string.warmup_ankle_circles),
+                        reps = 1,
+                        exerciseDurationSeconds = 40,
+                        restDurationSeconds = 10,
+                        overrideDefaults = false,
+                    ),
+                    Exercise(
+                        id = "warmup_hip_circles",
+                        name = res.getString(R.string.warmup_hip_circles),
+                        reps = 1,
+                        exerciseDurationSeconds = 40,
+                        restDurationSeconds = 10,
+                        overrideDefaults = false,
+                    ),
+                    Exercise(
+                        id = "warmup_arm_swings",
+                        name = res.getString(R.string.warmup_arm_swings),
+                        reps = 1,
+                        exerciseDurationSeconds = 30,
+                        restDurationSeconds = 10,
+                        overrideDefaults = true,
+                    ),
+                    Exercise(
+                        id = "warmup_squats",
+                        name = res.getString(R.string.warmup_squats),
+                        reps = 1,
+                        exerciseDurationSeconds = 50,
+                        restDurationSeconds = 10,
+                        overrideDefaults = true,
+                    ),
+                    Exercise(
+                        id = "warmup_leg_swings",
+                        name = res.getString(R.string.warmup_leg_swings),
+                        reps = 1,
+                        exerciseDurationSeconds = 40,
+                        restDurationSeconds = 10,
+                        overrideDefaults = false,
+                    ),
+                    Exercise(
+                        id = "warmup_march",
+                        name = res.getString(R.string.warmup_march),
+                        reps = 1,
+                        exerciseDurationSeconds = 60,
+                        restDurationSeconds = 10,
+                        overrideDefaults = true,
+                    ),
+                ),
+            ),
         )
     }
 
@@ -359,5 +413,6 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
         private const val KEY_DISMISSED = "dismissed_defaults"
         private const val BUILTIN_PARKOUR_ID = "builtin_parkour"
         private const val BUILTIN_FOOTBALL_ID = "builtin_football"
+        private const val BUILTIN_WARMUP_ID = "builtin_warmup"
     }
 }
