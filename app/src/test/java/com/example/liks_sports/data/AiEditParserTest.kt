@@ -208,4 +208,130 @@ class AiEditParserTest {
         val edited = AiEditParser.applyAiEdits(routine(), resp)
         assertEquals(10, edited!!.exercises[0].reps)
     }
+
+    // --- JSON extraction robustness (wrong-JSON bug) ---
+
+    @Test
+    fun extractJsonBlock_toleratesTrailingProseWithoutFence() {
+        val text = "Sure! Here is the plan:\n{\"actions\":[{\"type\":\"message\",\"text\":\"hi\"}]}\nLet me know."
+        assertEquals("{\"actions\":[{\"type\":\"message\",\"text\":\"hi\"}]}", AiEditParser.extractJsonBlock(text))
+    }
+
+    @Test
+    fun extractJsonBlock_toleratesMissingClosingFence() {
+        val text = "```json\n{\"actions\":[{\"type\":\"message\",\"text\":\"hi\"}]}"
+        assertEquals("{\"actions\":[{\"type\":\"message\",\"text\":\"hi\"}]}", AiEditParser.extractJsonBlock(text))
+    }
+
+    @Test
+    fun extractJsonBlock_doesNotTruncateOnFenceInsideString() {
+        // A ``` appearing inside a JSON string value must not terminate the
+        // fenced block early (the old non-greedy regex truncated here).
+        val inner = "{\"actions\":[{\"type\":\"message\",\"text\":\"use ```json fences\"}]}"
+        val text = "```json\n$inner\n```"
+        assertEquals(inner, AiEditParser.extractJsonBlock(text))
+    }
+
+    @Test
+    fun applyAiEdits_malformedTopLevelJsonReturnsNull() {
+        assertNull(AiEditParser.applyAiEdits(routine(), "{not valid json"))
+    }
+
+    @Test
+    fun applyAiEdits_skipsBadActionButAppliesRest() {
+        // First element is not an object -> skipped; second is applied.
+        val resp = """{"actions":["not-an-object",{"type":"add_exercise","name":"Plank","reps":1}]}"""
+        val edited = AiEditParser.applyAiEdits(routine(), resp)
+        assertNotNull(edited)
+        assertEquals(2, edited!!.exercises.size)
+        assertEquals("Plank", edited.exercises[1].name)
+    }
+
+    @Test
+    fun applyAiEdits_unknownActionTypeSkipped() {
+        val resp = """{"actions":[{"type":"bogus_type","foo":"bar"},{"type":"add_exercise","name":"Plank","reps":1}]}"""
+        val edited = AiEditParser.applyAiEdits(routine(), resp)
+        assertEquals(2, edited!!.exercises.size)
+    }
+
+    // --- Override auto-enable (times & overrides bug) ---
+
+    @Test
+    fun applyAiEdits_modifyExerciseDurationAutoEnablesOverride() {
+        val r = Routine(
+            id = "r1",
+            name = "Test",
+            exercises = listOf(
+                Exercise(id = "a", name = "A", reps = 1, exerciseDurationSeconds = 30, restDurationSeconds = 10, overrideDefaults = false),
+            ),
+        )
+        val resp = """{"actions":[{"type":"modify_exercise","exerciseId":"a","changes":{"exerciseDurationSeconds":45}}]}"""
+        val edited = AiEditParser.applyAiEdits(r, resp)
+        assertEquals(45, edited!!.exercises[0].exerciseDurationSeconds)
+        assertTrue(edited.exercises[0].overrideDefaults)
+    }
+
+    @Test
+    fun applyAiEdits_modifyExerciseExplicitFalseReattachesToGlobal() {
+        val r = Routine(
+            id = "r1",
+            name = "Test",
+            exercises = listOf(
+                Exercise(id = "a", name = "A", reps = 1, exerciseDurationSeconds = 45, restDurationSeconds = 20, overrideDefaults = true),
+            ),
+        )
+        val resp = """{"actions":[{"type":"modify_exercise","exerciseId":"a","changes":{"overrideDefaults":false}}]}"""
+        val edited = AiEditParser.applyAiEdits(r, resp)
+        assertFalse(edited!!.exercises[0].overrideDefaults)
+    }
+
+    @Test
+    fun applyAiEdits_addExerciseWithCustomDurationIsOverridden() {
+        val r = Routine(
+            id = "r1",
+            name = "Test",
+            exercises = listOf(
+                Exercise(id = "a", name = "A", reps = 1, exerciseDurationSeconds = 30, restDurationSeconds = 10, overrideDefaults = false),
+            ),
+        )
+        val resp = """{"actions":[{"type":"add_exercise","name":"B","exerciseDurationSeconds":60,"restDurationSeconds":25,"reps":1}]}"""
+        val edited = AiEditParser.applyAiEdits(r, resp)
+        val added = edited!!.exercises.first { it.name == "B" }
+        assertEquals(60, added.exerciseDurationSeconds)
+        assertTrue(added.overrideDefaults)
+    }
+
+    @Test
+    fun applyAiEdits_addExerciseMatchingGlobalDefaultStaysNonOverridden() {
+        val r = Routine(
+            id = "r1",
+            name = "Test",
+            exercises = listOf(
+                Exercise(id = "a", name = "A", reps = 1, exerciseDurationSeconds = 30, restDurationSeconds = 10, overrideDefaults = false),
+            ),
+        )
+        val resp = """{"actions":[{"type":"add_exercise","name":"B","exerciseDurationSeconds":30,"restDurationSeconds":10,"reps":1}]}"""
+        val edited = AiEditParser.applyAiEdits(r, resp)
+        val added = edited!!.exercises.first { it.name == "B" }
+        assertFalse(added.overrideDefaults)
+    }
+
+    @Test
+    fun applyAiEdits_pinnedExerciseSurvivesSetGlobalDefaultsInSameBatch() {
+        val r = Routine(
+            id = "r1",
+            name = "Test",
+            exercises = listOf(
+                Exercise(id = "a", name = "A", reps = 1, exerciseDurationSeconds = 30, restDurationSeconds = 10, overrideDefaults = false),
+            ),
+        )
+        val resp = """{"actions":[
+            {"type":"modify_exercise","exerciseId":"a","changes":{"exerciseDurationSeconds":45}},
+            {"type":"set_global_defaults","exerciseDurationSeconds":60,"restDurationSeconds":15}
+        ]}"""
+        val edited = AiEditParser.applyAiEdits(r, resp)
+        val a = edited!!.exercises.first { it.id == "a" }
+        assertEquals(45, a.exerciseDurationSeconds)
+        assertTrue(a.overrideDefaults)
+    }
 }

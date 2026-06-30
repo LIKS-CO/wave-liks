@@ -85,6 +85,7 @@ fun AiChatDialog(
     val listState = rememberLazyListState()
     val context = LocalContext.current
     val notConfiguredMsg = stringResource(R.string.ai_not_configured)
+    val noModelMsg = stringResource(R.string.ai_no_model)
     val notDownloadedMsg = stringResource(R.string.ai_not_downloaded)
     val localLoadingMsg = stringResource(R.string.ai_local_loading)
     val noNetworkMsg = stringResource(R.string.ai_network_error, "No internet connection")
@@ -260,7 +261,11 @@ fun AiChatDialog(
                             val msg = input.trim()
                             if (msg.isEmpty() || streamingContent != null) return@IconButton
                             if (!settings.isAiReady()) {
-                                errorText = if (settings.useCloudModel) notConfiguredMsg else notDownloadedMsg
+                                errorText = when {
+                                    !settings.useCloudModel -> notDownloadedMsg
+                                    settings.modelId.isBlank() -> noModelMsg
+                                    else -> notConfiguredMsg
+                                }
                                 return@IconButton
                             }
                             if (settings.useCloudModel && !NetworkUtil.isAvailable(context)) {
@@ -363,6 +368,11 @@ private fun ChatBubble(
 
 private class AiStreamException(message: String) : Exception(message)
 
+/** Signals a non-200 HTTP response from the cloud endpoint. Used internally
+ *  to decide whether to retry without JSON mode (some servers 400 on the
+ *  response_format field). */
+private class AiStreamHttpException(val code: Int, message: String) : Exception(message)
+
 private suspend fun streamFromLocal(
     settings: SettingsStore,
     engine: LocalLlmEngine,
@@ -389,11 +399,36 @@ private suspend fun streamFromCloud(
     onReasoningToken: (String) -> Unit,
 ): String = withContext(Dispatchers.IO) {
     val baseUrl = settings.apiUrl.trimEnd('/')
+    // Try with JSON mode first (request a JSON object so the model is less
+    // likely to emit prose around the actions block). A few OpenAI-compatible
+    // servers reject the response_format field with a 400; on that specific
+    // error we retry once without JSON mode so those endpoints still work.
+    try {
+        doCloudStream(baseUrl, settings, routine, messages, useJsonMode = true, onToken, onReasoningToken)
+    } catch (e: AiStreamHttpException) {
+        if (e.code == 400) {
+            doCloudStream(baseUrl, settings, routine, messages, useJsonMode = false, onToken, onReasoningToken)
+        } else {
+            throw e
+        }
+    }
+}
+
+private suspend fun doCloudStream(
+    baseUrl: String,
+    settings: SettingsStore,
+    routine: Routine,
+    messages: List<ChatMessage>,
+    useJsonMode: Boolean,
+    onToken: (String) -> Unit,
+    onReasoningToken: (String) -> Unit,
+): String = withContext(Dispatchers.IO) {
     val url = URL("$baseUrl/chat/completions")
     val connection = url.openConnection() as HttpURLConnection
     try {
         connection.requestMethod = "POST"
         connection.setRequestProperty("Content-Type", "application/json")
+        connection.setRequestProperty("Accept", "text/event-stream")
         connection.setRequestProperty("Authorization", "Bearer ${settings.apiKey}")
         connection.instanceFollowRedirects = false
         connection.doOutput = true
@@ -418,6 +453,11 @@ private suspend fun streamFromCloud(
             put("messages", requestMessages)
             put("temperature", 0.7)
             put("stream", true)
+            if (useJsonMode) {
+                put("response_format", JSONObject().apply {
+                    put("type", "json_object")
+                })
+            }
         }
 
         connection.outputStream.use { os ->
@@ -429,6 +469,11 @@ private suspend fun streamFromCloud(
             val errorStream = connection.errorStream
             val errorBody = errorStream?.bufferedReader(Charsets.UTF_8)?.readText() ?: ""
             errorStream?.close()
+            if (responseCode == 400) {
+                // Bubble up as a retryable signal; streamFromCloud may retry
+                // without JSON mode before surfacing the error.
+                throw AiStreamHttpException(400, "Bad request: $errorBody")
+            }
             val msg = when (responseCode) {
                 401 -> "Authentication failed. Check your API key."
                 429 -> "Rate limited. Wait and try again."
@@ -438,16 +483,21 @@ private suspend fun streamFromCloud(
             throw AiStreamException(msg)
         }
 
+        var sawReasoning = false
         BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
             val sb = StringBuilder()
             var line: String?
             while (reader.readLine().also { line = it } != null) {
                 val l = line ?: continue
-                if (l.startsWith("data: ")) {
-                    val data = l.removePrefix("data: ").trim()
+                // Match "data:" flexibly so servers that emit "data:{...}"
+                // (no space) are not silently dropped — this was causing the
+                // chat to show no response ("nothing happens").
+                if (l.startsWith("data:")) {
+                    val data = l.removePrefix("data:").trim()
                     if (data == "[DONE]") {
                         break
                     }
+                    if (data.isEmpty()) continue
                     try {
                         val chunk = JSONObject(data)
                         val choices = chunk.optJSONArray("choices")
@@ -465,6 +515,7 @@ private suspend fun streamFromCloud(
                             val rawReasoning = delta?.opt("reasoning_content")
                             val reasoning = if (rawReasoning is String) rawReasoning else ""
                             if (reasoning.isNotEmpty()) {
+                                sawReasoning = true
                                 withContext(Dispatchers.Main) { onReasoningToken(reasoning) }
                             }
                         }
@@ -473,7 +524,17 @@ private suspend fun streamFromCloud(
                     }
                 }
             }
-            sb.toString()
+            val result = sb.toString()
+            // A 200 with no content and no reasoning means the endpoint did not
+            // stream a usable response (e.g. ignored stream:true). Surface a
+            // clear error instead of an empty assistant bubble ("nothing happens").
+            if (result.isEmpty() && !sawReasoning) {
+                throw AiStreamException(
+                    "No content received. The endpoint may not support streaming, " +
+                        "the model ID may be wrong, or the server ignored the stream request.",
+                )
+            }
+            result
         }
     } finally {
         connection.disconnect()

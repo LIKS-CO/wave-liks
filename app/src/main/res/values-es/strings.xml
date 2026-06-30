@@ -187,6 +187,7 @@
     <string name="ai_you">Tú</string>
     <string name="ai_ai">IA</string>
     <string name="ai_not_configured">API no configurada</string>
+    <string name="ai_no_model">No hay modelo seleccionado. Abre Configuración y elige uno.</string>
     <string name="ai_not_downloaded">Modelo en dispositivo no descargado. Abre Configuración para descargarlo.</string>
     <string name="ai_local_loading">Cargando modelo en dispositivo…</string>
     <string name="ai_network_error">Error de red: %1$s</string>

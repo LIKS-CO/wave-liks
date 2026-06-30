@@ -267,7 +267,12 @@ fun SettingsDialog(
                                 store.saveLocal(backend)
                             }
                             onDismiss()
-                        }
+                        },
+                        // Require a complete cloud config (url + key + model)
+                        // before saving, otherwise the chat silently does
+                        // nothing ("v1 endpoint + key, nothing happens").
+                        enabled = !useCloud ||
+                            (apiUrl.isNotBlank() && apiKey.isNotBlank() && modelId.isNotBlank()),
                     ) { Text(stringResource(R.string.save)) }
                 }
             }

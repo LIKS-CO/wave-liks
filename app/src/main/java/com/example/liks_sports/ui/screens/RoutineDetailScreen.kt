@@ -110,12 +110,18 @@ fun RoutineDetailScreen(
     }
     var exercises by remember(savedExercises) { mutableStateOf(savedExercises) }
     val initialDefaults = remember(routine.id) {
-        if (routine.exercises.isEmpty()) {
+        // Mirror AiEditParser.computeGlobalDefaults: derive the slider value from
+        // the non-overridden exercises (the ones it actually controls), falling
+        // back to all exercises when every exercise is overridden. Using all
+        // exercises here caused the slider and the AI's notion of the global
+        // default to disagree for routines with overridden exercises.
+        val pool = routine.exercises.filter { !it.overrideDefaults }.ifEmpty { routine.exercises }
+        if (pool.isEmpty()) {
             30 to 10
         } else {
-            val exerciseMode = routine.exercises.groupingBy { it.exerciseDurationSeconds }
+            val exerciseMode = pool.groupingBy { it.exerciseDurationSeconds }
                 .eachCount().maxByOrNull { it.value }?.key?.coerceIn(5, 120) ?: 30
-            val restMode = routine.exercises.groupingBy { it.restDurationSeconds }
+            val restMode = pool.groupingBy { it.restDurationSeconds }
                 .eachCount().maxByOrNull { it.value }?.key?.coerceIn(5, 120) ?: 10
             exerciseMode to restMode
         }
